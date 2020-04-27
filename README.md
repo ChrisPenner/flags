@@ -5,11 +5,10 @@
 
 * [Magic](#magic)
 * [Examples](#examples)
-* [Roadmap](#roadmap)
 
 <!-- tocstop -->
 
-Flags solves the "how the heck do I parse command line args".
+Flags solves the "how the heck do I parse command line args" problem.
 
 What makes it different from the other 10000 solutions?
 
@@ -18,10 +17,19 @@ without requiring ANY dependencies from your users!
 
 Some other bonuses:
 
-* Supports short & long flags
-* Supports 'sub commands' (think 'git log', 'git rebase', etc.)
-* Automatically generates the proper 'help' messages.
-* Configuration is entirely declarative, no fiddling with args yourself!
+- [x] Supports Sub-commands (think 'git log', 'git rebase', etc.)
+- [x] Configuration is entirely declarative, no fiddling with args yourself!
+- [x] Supports both short and long flags (at the same time) 
+- [x] Allows passing multiple of the same flag
+
+Upcoming features:
+
+- [ ] Automatically generates the proper 'help' messages.
+- [ ] Yaml config
+- [ ] Validate argument types (string, number, file, etc.)
+- [ ] Required vs optional arguments
+- [ ] Includes easy "include" command for shipping bash scripts
+- [ ] Npm install
 
 How do we achieve all this ✨magic✨ you ask?
 
@@ -148,16 +156,3 @@ with args available as environment variables of the appropriate name!
 
 
 You can find this example in [./todo.sh](./todo.sh) .
-
-## Roadmap
-
-- [x] Shortflag parsing
-- [x] Longflag parsing
-- [x] Allow passing multiple of the same flag
-- [x] Argument collection
-- [] Auto help command
-- [] Yaml config
-- [] Validate argument types
-- [] Required vs optional arguments
-- [] Add "export" command
-- [] Npm install
