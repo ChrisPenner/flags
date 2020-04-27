@@ -30,6 +30,7 @@ Upcoming features:
 - [ ] Required vs optional arguments
 - [ ] Includes easy "include" command for shipping bash scripts
 - [ ] Npm install
+- [ ] Tab-complete
 
 How do we achieve all this ✨magic✨ you ask?
 
