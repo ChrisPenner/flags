@@ -88,16 +88,22 @@ function list {
 
 flags <<'EOF'
 add:
-  template: 'add %todo'
-  help: "Add a todo to the list"
+  description: "Add a todo to the list"
   args:
-    todo: "The todo you'd like to add"
+    - name: todo
+      description: "The todo you'd like to add"
+      acceptMultiple: true
+  flags: []
 
 list:
-  template: 'list -r|--reverse [-q|--query=%query]'
-  help: "List out your existing TODOs"
+  description: "List out your existing TODOs"
+  args: []
   flags:
-    reverse: "Reverse the TODO list"
-    query: "List only TODOs containing this text"
+    - longName: reverse
+      shortName: r
+      description: "Reverse the TODO list"
+    - longName: query
+      shortName: q
+      description: "List only TODOs containing this text"
 EOF
 ```
