@@ -2,36 +2,62 @@
 
 LIST_LOCATION="$HOME/.todos"
 
+# Define our 'add' sub command
 function add {
-  echo "$1" >> "$LIST_LOCATION"
+  for todo in "$@" ; do
+    echo "$todo" >> "$LIST_LOCATION"
+  done
 }
 
+# Define our 'list' sub command
 function list {
     if [[ -n "$reverse" ]]; then
-        cat_cmd="tac"
+        reverser="tac"
     else
-        cat_cmd="cat"
+        reverser="cat"
     fi
-
 
     if [[ -n "$query" ]]; then
-        $cat_cmd -n "$LIST_LOCATION" | grep "$query"
+      filterer="grep $query"
     else
-        $cat_cmd cat -n "$LIST_LOCATION"
+      filterer="cat"
     fi
+
+  cat -n "$LIST_LOCATION" | \
+    $filterer | \
+    $reverser
 }
 
-flags <<'EOF'
-add:
-  template: 'add %todo'
-  help: "Add a todo to the list"
-  args:
-    todo: "The todo you'd like to add"
-
-list:
-  template: 'list -r|--reverse [-q|--query=%query]'
-  help: "List out your existing TODOs"
-  flags:
-    reverse: "Reverse the TODO list"
-    query: "List only TODOs containing this text"
+source <(spago run -q <<-'EOF'
+[
+   { "name": "add"
+   , "description": "Add a todo to the list"
+   , "args": [
+      { "name": "todo"
+      , "description": "The todo you'd like to add"
+      , "acceptMultiple": true
+      }
+    ],
+    "flags": []
+  },
+  { "name": "list"
+  , "description": "List out your existing TODOs"
+  , "args": []
+  , "flags": 
+    [ { "longName": "reverse"
+      , "shortName": "r"
+      , "description" : "Reverse the TODO list"
+      , "acceptMultiple": false
+      , "hasArg": false
+      },
+      { "longName": "query"
+      , "shortName": "q"
+      , "description": "List only TODOs containing this text"
+      , "acceptMultiple": false
+      , "hasArg": true
+      }
+    ]
+  }
+]
 EOF
+)

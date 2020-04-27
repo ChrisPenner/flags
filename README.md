@@ -1,5 +1,14 @@
 # Flags
 
+
+<!-- toc GFM -->
+
+* [Magic](#magic)
+* [Examples](#examples)
+* [Roadmap](#roadmap)
+
+<!-- tocstop -->
+
 Flags solves the "how the heck do I parse command line args".
 
 What makes it different from the other 10000 solutions?
@@ -25,7 +34,6 @@ it parses your configuration and helps you run your program.
 When you're ready to ship your script or plugin, you run it in compiler mode,
 bundle the generated bash file with your plugin or script (or literally copy-paste it into your script)
 then just `source` the compiled bash!
-
 
 ## Examples
 
@@ -67,43 +75,89 @@ Here's the source:
 
 LIST_LOCATION="$HOME/.todos"
 
+# Define our 'add' sub command
+# Arguments will be provided as expected in "$@"
 function add {
-  echo "$1" >> "$LIST_LOCATION"
+  for todo in "$@" ; do
+    echo "$todo" >> "$LIST_LOCATION"
+  done
 }
 
+# Define our 'list' sub command
+# Our flags for this sub-command will be parsed and provided as environment variables
 function list {
-    if [[ -n "$reverse" ]]; then
-        cat_cmd="tac"
+    # "reverse" will be true if specified, and blank otherwise
+    if $reverse; then
+        reverser="tac"
     else
-        cat_cmd="cat"
+        reverser="cat"
     fi
 
-
+    # "query" will be populated if provided
     if [[ -n "$query" ]]; then
-        $cat_cmd -n "$LIST_LOCATION" | grep "$query"
+      filterer="grep $query"
     else
-        $cat_cmd cat -n "$LIST_LOCATION"
+      filterer="cat"
     fi
+
+  cat -n "$LIST_LOCATION" | \
+    $filterer | \
+    $reverser
 }
 
-flags <<'EOF'
-add:
-  description: "Add a todo to the list"
-  args:
-    - name: todo
-      description: "The todo you'd like to add"
-      acceptMultiple: true
-  flags: []
-
-list:
-  description: "List out your existing TODOs"
-  args: []
-  flags:
-    - longName: reverse
-      shortName: r
-      description: "Reverse the TODO list"
-    - longName: query
-      shortName: q
-      description: "List only TODOs containing this text"
+# Here's where we specify our commands and flags, as well as their help text and descriptions
+source <(spago run -q <<-'EOF'
+[
+   { "name": "add"
+   , "description": "Add a todo to the list"
+   , "args": [
+      { "name": "todo"
+      , "description": "The todo you'd like to add"
+      , "acceptMultiple": true
+      }
+    ],
+    "flags": []
+  },
+  { "name": "list"
+  , "description": "List out your existing TODOs"
+  , "args": []
+  , "flags": 
+    [ { "longName": "reverse"
+      , "shortName": "r"
+      , "description" : "Reverse the TODO list"
+      , "acceptMultiple": false
+      , "hasArg": false
+      },
+      { "longName": "query"
+      , "shortName": "q"
+      , "description": "List only TODOs containing this text"
+      , "acceptMultiple": false
+      , "hasArg": true
+      }
+    ]
+  }
+]
 EOF
+)
 ```
+
+Notice the `source` command? That's where the magic happens.
+
+`flags` will generate a command line parser from your config, then run the appropriate function
+with args available as environment variables of the appropriate name!
+
+
+You can find this example in [./todo.sh](./todo.sh) .
+
+## Roadmap
+
+- [x] Shortflag parsing
+- [x] Longflag parsing
+- [x] Allow passing multiple of the same flag
+- [x] Argument collection
+- [] Auto help command
+- [] Yaml config
+- [] Validate argument types
+- [] Required vs optional arguments
+- [] Add "export" command
+- [] Npm install
