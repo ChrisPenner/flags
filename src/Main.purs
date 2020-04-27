@@ -1,13 +1,11 @@
 module Main where
 
-import Prelude
+import Prelude (Unit, bind, discard, pure, show, unit, ($), (<>), (>>=))
 
-import Control.Monad.Writer (Writer, censor, execWriter, tell)
 import Data.Argonaut (decodeJson, jsonParser)
-import Data.Array (replicate)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
-import Data.String (Pattern(..), Replacement(..), joinWith, replaceAll)
+import Data.String (joinWith)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class.Console as Console
@@ -68,7 +66,6 @@ type FlagDescription =
   , hasArg :: Boolean
   }
 
-
 type Command =
   { name :: String
   , description :: String
@@ -77,15 +74,14 @@ type Command =
   }
 type Commands = Array Command
 
-
 main :: Effect Unit
 main = launchAff_ do
-  {-- input <- readStdIn --}
-  let input = sampleJsonString
+  input <- readStdIn
+  {-- let input = sampleJsonString --}
   case jsonParser input >>= decodeJson of
        Left err -> Console.log $ show err
        Right (obj :: Commands) -> do
-          let bash = execWriter $ toBash obj
+          let bash = renderBash $ toBash obj
           Console.log $ bash
 
 toBash :: Commands -> Bash Unit
@@ -93,7 +89,7 @@ toBash cmds = do
   line "#!/bin/bash"
   subshell $ do
     line "set -x"
-    {-- line "local _args=()" --}
+    line "_args=()"
     {-- initCommandsVars cmds --}
     case_ (var "1") $ do
       for_ cmds renderCmd
@@ -138,12 +134,14 @@ captureArg = do
 
 
 renderFlagCase :: FlagDescription -> Bash Unit
-renderFlagCase {longName, shortName, hasArg} = do
+renderFlagCase {longName, shortName, hasArg, acceptMultiple} = do
   caseOption (joinWith "" ["--", longName, "|", "-", shortName ]) $ do
     shift
     if hasArg 
       then do 
-         assign longName (var "1")
+         if acceptMultiple
+          then append longName (var "1")
+          else assign longName (var "1")
          shift
       else do
          assign longName "true"

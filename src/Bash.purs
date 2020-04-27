@@ -1,11 +1,15 @@
 module Bash where
 
 import Prelude
-import Control.Monad.Writer (Writer, censor, tell)
-import Data.String (Pattern(..), Replacement(..), joinWith, replaceAll)
+
+import Control.Monad.Writer (Writer, censor, execWriter, tell)
 import Data.Array (replicate)
+import Data.String (Pattern(..), Replacement(..), joinWith, replaceAll)
 
 type Bash a = Writer String a
+
+renderBash :: forall a. Bash a -> String
+renderBash = execWriter
 
 caseOption :: String -> Bash Unit -> Bash Unit
 caseOption opt inside = do
@@ -60,3 +64,7 @@ subshell script = do
 assign :: String -> String -> Bash Unit
 assign varName val = do
   line $ varName <> "=" <> val
+
+append :: String -> String -> Bash Unit
+append varName val = do
+  line $ varName <> "+=(" <> val <> ")"
