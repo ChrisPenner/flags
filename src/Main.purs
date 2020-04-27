@@ -40,11 +40,13 @@ sampleJsonString = """
       , "shortName": "r"
       , "description" : "Reverse the TODO list"
       , "acceptMultiple": false
+      , "hasArg": false
       },
       { "longName": "query"
       , "shortName": "q"
       , "description": "List only TODOs containing this text"
       , "acceptMultiple": false
+      , "hasArg": true
       }
     ]
   }
@@ -63,6 +65,7 @@ type FlagDescription =
   , longName :: String
   , description :: String
   , acceptMultiple :: Boolean
+  , hasArg :: Boolean
   }
 
 
@@ -86,12 +89,15 @@ main = launchAff_ do
           Console.log $ bash
 
 toBash :: Commands -> Bash Unit
-toBash cmds = subshell $ do
-  line "local _args=()"
-  initCommandsVars cmds
-  case_ (var "1") $ do
-     for_ cmds renderCmd
-     defaultSubcommand cmds
+toBash cmds = do
+  line "#!/bin/bash"
+  subshell $ do
+    line "set -x"
+    {-- line "local _args=()" --}
+    {-- initCommandsVars cmds --}
+    case_ (var "1") $ do
+      for_ cmds renderCmd
+      defaultSubcommand cmds
 
 initCommandsVars :: Commands -> Bash Unit
 initCommandsVars cmds = do
@@ -119,7 +125,7 @@ renderCmd cmd = do
 
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
 renderCmdArgsAndFlagsParser {flags} = do
-  while "[[ #$ -gt 0 ]]" $ do
+  while "[[ $# -gt 0 ]]" $ do
      case_ (var "1") $ do
       for_ flags renderFlagCase
       caseOption "*" $ do
@@ -132,7 +138,12 @@ captureArg = do
 
 
 renderFlagCase :: FlagDescription -> Bash Unit
-renderFlagCase {longName, shortName} = do
+renderFlagCase {longName, shortName, hasArg} = do
   caseOption (joinWith "" ["--", longName, "|", "-", shortName ]) $ do
-    line $ longName <> "=" <> (var "1")
     shift
+    if hasArg 
+      then do 
+         assign longName (var "1")
+         shift
+      else do
+         assign longName "true"

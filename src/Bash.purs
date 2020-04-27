@@ -38,7 +38,7 @@ line s = tell (s <> "\n")
 
 while :: String -> Bash Unit -> Bash Unit
 while condition loop = do
-  line $ "while " <> condition <> " do"
+  line $ "while " <> condition <> "; do"
   indented 1 $ do
      loop
   line "done"
@@ -56,3 +56,7 @@ subshell script = do
   line "("
   indented 1 script
   line ")"
+
+assign :: String -> String -> Bash Unit
+assign varName val = do
+  line $ varName <> "=" <> val
