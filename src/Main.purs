@@ -88,7 +88,6 @@ toBash :: Commands -> Bash Unit
 toBash cmds = do
   line "#!/bin/bash"
   subshell $ do
-    line "set -x"
     line "_args=()"
     {-- initCommandsVars cmds --}
     case_ (var "1") $ do
@@ -109,7 +108,7 @@ defaultSubcommand cmds = do
 
 renderTopLevelHelp :: Commands -> Bash Unit
 renderTopLevelHelp cmds = do
-  pure unit
+  line "echo USAGE: usage goes here >&2"
 
 renderCmd :: Command -> Bash Unit
 renderCmd cmd = do
