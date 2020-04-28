@@ -22,12 +22,12 @@ Some other bonuses:
 - [x] Supports both short and long flags (at the same time) 
 - [x] Allows passing multiple of the same flag
 - [x] Yaml config
+- [x] Automatically generates the proper 'help' messages.
 
 Upcoming features:
 
-- [ ] Automatically generates the proper 'help' messages.
-- [ ] Validate argument types (string, number, file, etc.)
 - [ ] Required vs optional arguments
+- [ ] Validate argument types (string, number, file, etc.)
 - [ ] Includes easy "include" command for shipping bash scripts
 - [ ] Npm install
 - [ ] Tab-complete
@@ -35,7 +35,7 @@ Upcoming features:
 
 How do we achieve all this ✨magic✨ you ask?
 
-Easy! Flags is effectively a bash compiler!
+Easy! Flags just generates bash for you!
 
 ## Magic
 

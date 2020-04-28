@@ -1,6 +1,6 @@
 module Main where
 
-import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while)
+import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while, if')
 import Control.Alt (map)
 import Control.Alternative (when)
 import Data.Argonaut (decodeJson)
@@ -8,6 +8,7 @@ import Data.Array (any, null)
 import Data.BooleanAlgebra (not)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
+import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
@@ -15,7 +16,7 @@ import Effect.Aff (Aff, launchAff_)
 import Effect.Class.Console as Console
 import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile)
-import Prelude ((==), (&&), Unit, bind, discard, show, ($), (<>), (>>=))
+import Prelude ((==), (*>), (&&), Unit, bind, discard, show, ($), (<>), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
@@ -152,9 +153,11 @@ renderCmd cmd = do
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
 renderCmdArgsAndFlagsParser cmd@{flags} = do
   while "[[ $# -gt 0 ]]" $ do
+     if' ("[[ -n " <> var "_skip_flag" <> " ]]") (captureArg *> shift *> line "continue") Nothing
      case_ (var "1") $ do
-      helpCase cmd
       for_ flags renderFlagCase
+      skipFlagCase
+      helpCase cmd
       caseOption "*" $ do
          captureArg
          shift
@@ -163,9 +166,15 @@ captureArg :: Bash Unit
 captureArg = do
   line $ "_args+=(" <> (var "1") <> ")"
 
+skipFlagCase :: Bash Unit
+skipFlagCase = do
+  caseOption "\"--\"" $ do
+    shift
+    line "_skip_flag=true"
+
 helpCase :: Command -> Bash Unit
 helpCase cmd = do
-  caseOption ("-h|--help") $ do
+  caseOption "-h|--help" $ do
     renderCmdHelp cmd
     line "exit 1"
 

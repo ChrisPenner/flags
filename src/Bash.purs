@@ -4,6 +4,8 @@ import Prelude
 
 import Control.Monad.Writer (Writer, censor, execWriter, tell)
 import Data.Array (replicate)
+import Data.Foldable (for_)
+import Data.Maybe (Maybe)
 import Data.String (Pattern(..), Replacement(..), joinWith, replaceAll)
 
 type Bash a = Writer String a
@@ -46,6 +48,15 @@ while condition loop = do
   indented 1 $ do
      loop
   line "done"
+
+if' :: String -> Bash Unit -> Maybe (Bash Unit) -> Bash Unit
+if' condition whenTrue mWhenFalse = do
+  line $ "if " <> condition <> "; then"
+  indented 1 whenTrue
+  for_ mWhenFalse $ \whenFalse -> do
+    line "else"
+    indented 1 whenFalse
+  line "fi"
 
 shift :: Bash Unit
 shift = line "shift"
