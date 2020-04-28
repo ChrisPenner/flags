@@ -29,13 +29,14 @@ function list {
 }
 
 
-source <(spago run -q <<-'EOF'
+source <( (spago run -q <<-'EOF'
 - name: add
   description: "Add a todo to the list"
   args:
     - name: todo
       description: "The todo you'd like to add"
-      acceptMultiple: true
+      multiple: true
+      validators: []
   flags: []
 - name: "list"
   description: "List out your existing TODOs"
@@ -44,46 +45,14 @@ source <(spago run -q <<-'EOF'
     - longName: "reverse"
       shortName: "r"
       description: "Reverse the TODO list"
-      acceptMultiple: false
+      multiple: false
       hasArg: false
+      validators: []
     - longName: "query"
       shortName: "q"
       description: "List only TODOs containing this text"
-      acceptMultiple: false
+      multiple: false
       hasArg: true
+      validators: []
 EOF
-)
-
-# source <(spago run -q <<-'EOF'
-# [
-#    { "name": "add"
-#    , "description": "Add a todo to the list"
-#    , "args": [
-#       { "name": "todo"
-#       , "description": "The todo you'd like to add"
-#       , "acceptMultiple": true
-#       }
-#     ],
-#     "flags": []
-#   },
-#   { "name": "list"
-#   , "description": "List out your existing TODOs"
-#   , "args": []
-#   , "flags": 
-#     [ { "longName": "reverse"
-#       , "shortName": "r"
-#       , "description" : "Reverse the TODO list"
-#       , "acceptMultiple": false
-#       , "hasArg": false
-#       },
-#       { "longName": "query"
-#       , "shortName": "q"
-#       , "description": "List only TODOs containing this text"
-#       , "acceptMultiple": false
-#       , "hasArg": true
-#       }
-#     ]
-#   }
-# ]
-# EOF
-# )
+) | tee "out.sh" )

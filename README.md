@@ -21,16 +21,17 @@ Some other bonuses:
 - [x] Configuration is entirely declarative, no fiddling with args yourself!
 - [x] Supports both short and long flags (at the same time) 
 - [x] Allows passing multiple of the same flag
+- [x] Yaml config
 
 Upcoming features:
 
 - [ ] Automatically generates the proper 'help' messages.
-- [ ] Yaml config
 - [ ] Validate argument types (string, number, file, etc.)
 - [ ] Required vs optional arguments
 - [ ] Includes easy "include" command for shipping bash scripts
 - [ ] Npm install
 - [ ] Tab-complete
+- [ ] Support '--' special flag
 
 How do we achieve all this ✨magic✨ you ask?
 
@@ -116,36 +117,27 @@ function list {
 
 # Here's where we specify our commands and flags, as well as their help text and descriptions
 source <(spago run -q <<-'EOF'
-[
-   { "name": "add"
-   , "description": "Add a todo to the list"
-   , "args": [
-      { "name": "todo"
-      , "description": "The todo you'd like to add"
-      , "acceptMultiple": true
-      }
-    ],
-    "flags": []
-  },
-  { "name": "list"
-  , "description": "List out your existing TODOs"
-  , "args": []
-  , "flags": 
-    [ { "longName": "reverse"
-      , "shortName": "r"
-      , "description" : "Reverse the TODO list"
-      , "acceptMultiple": false
-      , "hasArg": false
-      },
-      { "longName": "query"
-      , "shortName": "q"
-      , "description": "List only TODOs containing this text"
-      , "acceptMultiple": false
-      , "hasArg": true
-      }
-    ]
-  }
-]
+- name: add
+  description: "Add a todo to the list"
+  args:
+    - name: todo
+      description: "The todo you'd like to add"
+      acceptMultiple: true
+  flags: []
+- name: "list"
+  description: "List out your existing TODOs"
+  args: []
+  flags:
+    - longName: "reverse"
+      shortName: "r"
+      description: "Reverse the TODO list"
+      acceptMultiple: false
+      hasArg: false
+    - longName: "query"
+      shortName: "q"
+      description: "List only TODOs containing this text"
+      acceptMultiple: false
+      hasArg: true
 EOF
 )
 ```

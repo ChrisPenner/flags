@@ -68,3 +68,10 @@ assign varName val = do
 append :: String -> String -> Bash Unit
 append varName val = do
   line $ varName <> "+=(" <> val <> ")"
+
+echoErrLn :: String -> Bash Unit
+echoErrLn s = line $ "echo \"" <> s <> "\" >&2"
+
+scriptName :: String
+scriptName = var "0"
+
