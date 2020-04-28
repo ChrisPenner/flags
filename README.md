@@ -23,6 +23,7 @@ Some other bonuses:
 - [x] Allows passing multiple of the same flag
 - [x] Yaml config
 - [x] Automatically generates the proper 'help' messages.
+- [x] Support '--' passthrough flag
 
 Upcoming features:
 
@@ -31,7 +32,6 @@ Upcoming features:
 - [ ] Includes easy "include" command for shipping bash scripts
 - [ ] Npm install
 - [ ] Tab-complete
-- [ ] Support '--' special flag
 
 How do we achieve all this ✨magic✨ you ask?
 
