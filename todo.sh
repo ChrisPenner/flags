@@ -34,7 +34,7 @@ source <( (spago run -q <<-'EOF'
   description: "Add a todo to the list"
   args:
     - name: todo
-      description: "The todo you'd like to add"
+      description: "The todos you'd like to add"
       multiple: true
       validators: []
   flags: []

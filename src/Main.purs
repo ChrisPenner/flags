@@ -7,7 +7,6 @@ import Data.Argonaut (decodeJson)
 import Data.Array (any, null)
 import Data.BooleanAlgebra (not)
 import Data.Either (Either(..))
-import Data.Eq (class Eq)
 import Data.Foldable (for_)
 import Data.String (joinWith)
 import Data.Yaml (parseFromYaml)
@@ -80,8 +79,9 @@ renderTopLevelHelp :: Commands -> Bash Unit
 renderTopLevelHelp cmds = do
   echoErrLn "Usage:"
   echoErrLn $ "  " <> scriptName <> " <command>"
+  echoErrLn ""
   echoErrLn "More info:"
-  echoErrLn $ scriptName <> " " <> "help" <> " <command>"
+  echoErrLn $ "  " <> scriptName <> " [command] --help"
   echoErrLn ""
   echoErrLn $ "Commands:"
   for_ cmds renderCmdSummary
@@ -93,7 +93,9 @@ renderCmdSummary {name, description, args, flags} = do
 
 renderCmdHelp :: Command -> Bash Unit
 renderCmdHelp cmd@{name, description, args, flags} = do
+  echoErrLn "Usage:"
   renderCmdSummary cmd
+  echoErrLn ""
   when (not (null args)) $ do
     echoErrLn "Args: "
     for_ args renderArgHelp 
@@ -148,9 +150,10 @@ renderCmd cmd = do
      line (cmd.name <> " " <> quoted "${_args[@]}")
 
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
-renderCmdArgsAndFlagsParser {flags} = do
+renderCmdArgsAndFlagsParser cmd@{flags} = do
   while "[[ $# -gt 0 ]]" $ do
      case_ (var "1") $ do
+      helpCase cmd
       for_ flags renderFlagCase
       caseOption "*" $ do
          captureArg
@@ -160,6 +163,11 @@ captureArg :: Bash Unit
 captureArg = do
   line $ "_args+=(" <> (var "1") <> ")"
 
+helpCase :: Command -> Bash Unit
+helpCase cmd = do
+  caseOption ("-h|--help") $ do
+    renderCmdHelp cmd
+    line "exit 1"
 
 renderFlagCase :: FlagDescription -> Bash Unit
 renderFlagCase {longName, shortName, hasArg, multiple} = do
