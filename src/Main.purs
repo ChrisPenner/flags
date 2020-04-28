@@ -13,6 +13,7 @@ import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile)
 import Unsafe.Coerce (unsafeCoerce)
 import Bash
+import Data.Yaml
 
 readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
@@ -78,7 +79,7 @@ main :: Effect Unit
 main = launchAff_ do
   input <- readStdIn
   {-- let input = sampleJsonString --}
-  case jsonParser input >>= decodeJson of
+  case parseFromYaml input >>= decodeJson of
        Left err -> Console.log $ show err
        Right (obj :: Commands) -> do
           let bash = renderBash $ toBash obj
@@ -89,7 +90,6 @@ toBash cmds = do
   line "#!/bin/bash"
   subshell $ do
     line "_args=()"
-    {-- initCommandsVars cmds --}
     case_ (var "1") $ do
       for_ cmds renderCmd
       defaultSubcommand cmds

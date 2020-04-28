@@ -15,6 +15,7 @@ You can edit this file as you like.
   , "psci-support"
   , "simple-json"
   , "string-parsers"
+  , "yayamll"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
