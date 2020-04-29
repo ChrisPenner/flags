@@ -27,6 +27,7 @@ Some other bonuses:
 
 Upcoming features:
 
+- [ ] Default values
 - [ ] Required vs optional arguments
 - [ ] Validate argument types (string, number, file, etc.)
 - [ ] Includes easy "include" command for shipping bash scripts

@@ -7,7 +7,11 @@
     "test": "test"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "publish": "np"
+  },
+  "bin": {
+    "flags": "./flags.sh"
   },
   "repository": {
     "type": "git",
@@ -21,5 +25,8 @@
   "homepage": "https://github.com/ChrisPenner/flags#readme",
   "dependencies": {
     "js-yaml": "^3.13.1"
+  },
+  "devDependencies": {
+    "np": "^6.2.3"
   }
 }
