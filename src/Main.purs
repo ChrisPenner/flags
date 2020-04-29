@@ -3,14 +3,14 @@ module Main where
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while, if')
 import Control.Alt (map)
 import Control.Alternative (pure, when)
-import Data.Argonaut (decodeJson)
+import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
 import Data.Array (any, drop, null)
 import Data.BooleanAlgebra (not)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
-import Data.Unit (unit)
+import Data.String.CodeUnits as String
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
@@ -24,28 +24,69 @@ import Unsafe.Coerce (unsafeCoerce)
 readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
 
-type ArgDescription =
+newtype ArgDescription = ArgDescription
   { name :: String
   , description :: String
   , multiple :: Boolean
-  , validators :: Array String
+  , required :: Boolean
   }
 
-type FlagDescription =
+instance decodeJsonArgDescription :: DecodeJson ArgDescription where
+  decodeJson json =
+    do
+       obj <- decodeJson json
+       name <- obj .: "name"
+       description <- obj .:? "description" .!= ""
+       multiple <- obj .:? "multiple" .!= false
+       required <- obj .:? "required" .!= false
+       pure (ArgDescription { name, description, multiple, required })
+
+newtype FlagDescription = FlagDescription
   { shortName :: String
   , longName :: String
   , description :: String
   , multiple :: Boolean
   , hasArg :: Boolean
-  , validators :: Array String
+  , required :: Boolean
   }
 
-type Command =
+instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
+  decodeJson json =
+    do
+       obj <- decodeJson json
+       longName <- obj .: "longName"
+       shortName <- case obj .: "shortName" of
+            Left err ->
+              case String.charAt 0 longName of
+                   Nothing -> Left err
+                   Just c -> pure (String.singleton c)
+            Right s -> s
+       description <- obj .:? "description" .!= ""
+       multiple <- obj .:? "multiple" .!= false
+       hasArg <- obj .:? "hasArg" .!= false
+       required <- obj .:? "required" .!= false
+       pure (FlagDescription { shortName, longName,  description, multiple, hasArg, required })
+
+
+newtype Command = Command
   { name :: String
   , description :: String
   , args :: Array ArgDescription
   , flags :: Array FlagDescription
   }
+
+instance decodeJsonCommand :: DecodeJson Command where
+  decodeJson json =
+    do
+       obj <- decodeJson json
+       name <- obj .: "name"
+       description <- obj .:? "description" .!= ""
+       args <- obj .:? "args" .!= []
+       flags <- obj .:? "flags" .!= []
+       pure (Command {name, description, args, flags})
+
+
+
 type Commands = Array Command
 
 main :: Effect Unit
@@ -54,6 +95,7 @@ main = do
   -- Drop node location and script location
   configFile <- case (drop 2 args) of
       [] -> pure Nothing
+      ["-"] -> pure Nothing
       [f] -> pure (Just f)
       _ -> do
          Console.log $ "Usage:"
@@ -83,8 +125,8 @@ toBash cmds = do
 
 initCommandsVars :: Commands -> Bash Unit
 initCommandsVars cmds = do
-  for_ cmds $ \{flags} -> do
-    for_ flags $ \{longName} -> do
+  for_ cmds $ \(Command {flags}) -> do
+    for_ flags $ \(FlagDescription {longName}) -> do
       line $ "local " <> longName
 
 defaultSubcommand :: Commands -> Bash Unit
@@ -105,39 +147,39 @@ renderTopLevelHelp cmds = do
   for_ cmds renderCmdSummary
 
 renderCmdSummary :: Command -> Bash Unit
-renderCmdSummary {name, description, args, flags} = do
+renderCmdSummary (Command {name, description, args, flags}) = do
   echoErrLn $ "  " <>
     joinWith " " [scriptName, name, argsToString args, flagsToString flags]
 
 renderCmdHelp :: Command -> Bash Unit
-renderCmdHelp cmd@{name, description, args, flags} = do
+renderCmdHelp cmd@(Command {name, description, args, flags}) = do
   echoErrLn "Usage:"
   renderCmdSummary cmd
   echoErrLn ""
   when (not (null args)) $ do
     echoErrLn "Args: "
-    for_ args renderArgHelp 
+    for_ args renderArgHelp
   when (not (null flags)) $ do
      echoErrLn "Flags: "
      for_ flags renderFlagHelp
 
 renderArgHelp :: ArgDescription -> Bash Unit
-renderArgHelp {name, description} = do
+renderArgHelp (ArgDescription {name, description}) = do
   echoErrLn $ "  " <> name <> ": " <> description
 
 renderFlagHelp :: FlagDescription -> Bash Unit
-renderFlagHelp {shortName, longName, description} = do
+renderFlagHelp (FlagDescription {shortName, longName, description}) = do
   echoErrLn $ "  -" <> shortName <> ", --" <> longName <> ": " <> description
 
 argsToString :: Array ArgDescription -> String
 argsToString args =
   joinWith " " $ map renderArg args
   where
-    renderArg arg@({name, multiple}) =
+    renderArg (ArgDescription arg@({name, multiple})) =
       wrapArg arg $
         name <> if multiple then "..." else ""
-    wrapArg {validators} s =
-      if isRequired validators
+    wrapArg {required} s =
+      if required
         then s
         else wrapOptional s
 
@@ -152,23 +194,23 @@ flagsToString :: Array FlagDescription -> String
 flagsToString flags =
   joinWith " " $ map renderFlag flags
   where
-    renderFlag flag@({longName, shortName, hasArg}) =
+    renderFlag (FlagDescription flag@({longName, shortName, hasArg})) =
       wrapFlag flag $
         "-" <> shortName <> "|" <> "--" <> longName <> if hasArg then "=<" <> longName <> ">" else ""
-    wrapFlag {hasArg, validators} flag =
-      if (isRequired validators && hasArg)
+    wrapFlag {hasArg, required} flag =
+      if (required && hasArg)
         then flag
         else wrapOptional flag
 
 renderCmd :: Command -> Bash Unit
-renderCmd cmd = do
-  caseOption cmd.name $ do
+renderCmd cmd@(Command {name}) = do
+  caseOption name $ do
      shift
      renderCmdArgsAndFlagsParser cmd
-     line (cmd.name <> " " <> quoted "${_args[@]}")
+     line (name <> " " <> quoted "${_args[@]}")
 
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
-renderCmdArgsAndFlagsParser cmd@{flags} = do
+renderCmdArgsAndFlagsParser cmd@(Command {flags}) = do
   while "[[ $# -gt 0 ]]" $ do
      if' ("[[ -n " <> var "_skip_flag" <> " ]]") (captureArg *> shift *> line "continue") Nothing
      case_ (var "1") $ do
@@ -196,7 +238,7 @@ helpCase cmd = do
     line "exit 1"
 
 renderFlagCase :: FlagDescription -> Bash Unit
-renderFlagCase {longName, shortName, hasArg, multiple} = do
+renderFlagCase (FlagDescription {longName, shortName, hasArg, multiple}) = do
   caseOption (joinWith "" ["--", longName, "|", "-", shortName ]) $ do
     shift
     if hasArg

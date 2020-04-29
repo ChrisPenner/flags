@@ -1,5 +1,6 @@
-#!/bin/bash
+#!/usr/local/bin/bash
 
+# set -x
 LIST_LOCATION="$HOME/.todos"
 
 # Define our 'add' sub command
@@ -28,31 +29,9 @@ function list {
     $reverser
 }
 
+tmpfile="$(mktemp)"
+flags config.yaml > "$tmpfile"
+source "$tmpfile"
 
-source <( (spago run -q <<-'EOF'
-- name: add
-  description: "Add a todo to the list"
-  args:
-    - name: todo
-      description: "The todos you'd like to add"
-      multiple: true
-      validators: []
-  flags: []
-- name: "list"
-  description: "List out your existing TODOs"
-  args: []
-  flags:
-    - longName: "reverse"
-      shortName: "r"
-      description: "Reverse the TODO list"
-      multiple: false
-      hasArg: false
-      validators: []
-    - longName: "query"
-      shortName: "q"
-      description: "List only TODOs containing this text"
-      multiple: false
-      hasArg: true
-      validators: []
-EOF
-) | tee "out.sh" )
+# https://stackoverflow.com/questions/32596123/why-source-command-doesnt-work-with-process-substitution-in-bash-3-2
+# source <( flags config.yaml )
