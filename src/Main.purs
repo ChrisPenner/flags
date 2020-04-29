@@ -2,20 +2,22 @@ module Main where
 
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while, if')
 import Control.Alt (map)
-import Control.Alternative (when)
+import Control.Alternative (pure, when)
 import Data.Argonaut (decodeJson)
-import Data.Array (any, null)
+import Data.Array (any, drop, null)
 import Data.BooleanAlgebra (not)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
+import Data.Unit (unit)
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class.Console as Console
 import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile)
+import Node.Process (argv, exit)
 import Prelude ((==), (*>), (&&), Unit, bind, discard, show, ($), (<>), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -47,13 +49,28 @@ type Command =
 type Commands = Array Command
 
 main :: Effect Unit
-main = launchAff_ do
-  input <- readStdIn
-  case parseFromYaml input >>= decodeJson of
-       Left err -> Console.log $ show err
-       Right (obj :: Commands) -> do
-          let bash = renderBash $ toBash obj
-          Console.log $ bash
+main = do
+  args <- argv
+  -- Drop node location and script location
+  configFile <- case (drop 2 args) of
+      [] -> pure Nothing
+      [f] -> pure (Just f)
+      _ -> do
+         Console.log $ "Usage:"
+         Console.log $ "  flags <config-file.yaml>"
+         Console.log $ "    Generate a bash script from a yaml command config"
+         Console.log $ "  flags -"
+         Console.log $ "    Generate a bash script from yaml provided via stdin"
+         exit 1
+  launchAff_ do
+    input <- case configFile of
+         Nothing -> readStdIn
+         Just f -> readTextFile UTF8 f
+    case parseFromYaml input >>= decodeJson of
+         Left err -> Console.log $ show err
+         Right (obj :: Commands) -> do
+            let bash = renderBash $ toBash obj
+            Console.log $ bash
 
 toBash :: Commands -> Bash Unit
 toBash cmds = do
