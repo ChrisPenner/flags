@@ -5,17 +5,19 @@ import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
 import Data.Array (any, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), optional)
 import Data.String (joinWith)
 import Data.String.CodeUnits as String
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
+import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Node.Encoding (Encoding(..))
-import Node.FS.Aff (readTextFile)
+import Node.FS.Aff (readTextFile, writeTextFile)
+import Node.Process (exit)
 import Options.Applicative (Parser, execParser, fullDesc, help, info, long, metavar, short, strOption, switch)
-import Prelude (Unit, bind, discard, map, not, pure, show, unit, when, ($), (&&), (*>), (<$>), (<*>), (<>), (==), (>>=))
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, when, ($), (&&), (*>), (<$>), (<*>), (<>), (==), (>>=), (<<<))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
@@ -24,10 +26,12 @@ readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
 data Options = Options
   { configFile   :: String
   , compilerMode :: Boolean
+  , sourceFile :: Maybe String
+  , outputFile :: Maybe String
   }
 
 optionsP :: Parser Options
-optionsP = (\configFile compilerMode -> Options {configFile, compilerMode})
+optionsP = (\configFile compilerMode sourceFile outputFile -> Options {configFile, compilerMode, sourceFile, outputFile})
       <$> strOption
           ( long "config-file"
          <> short 'f'
@@ -37,6 +41,16 @@ optionsP = (\configFile compilerMode -> Options {configFile, compilerMode})
           ( long "build"
          <> short 'b'
          <> help "Whether to be quiet" )
+      <*> optional (strOption
+          ( long "source"
+         <> short 's'
+         <> metavar "SOURCE-FILE"
+         <> help "Path to bash script" ))
+      <*> optional (strOption
+          ( long "out-file"
+         <> short 'o'
+         <> metavar "OUT-FILE"
+         <> help "Path to save compiled result" ))
 
 
 newtype ArgDescription = ArgDescription
@@ -108,14 +122,23 @@ type Commands = Array Command
 
 main :: Effect Unit
 main = do
-  Options {configFile, compilerMode} <- execParser $ info optionsP fullDesc
+  Options {configFile, compilerMode, sourceFile, outputFile} <- execParser $ info optionsP fullDesc
   launchAff_ do
     input <- readTextFile UTF8 configFile
-    case parseFromYaml input >>= decodeJson of
-         Left err -> Console.log $ show err
+    bash <- case parseFromYaml input >>= decodeJson of
+         Left err -> do
+            Console.error $ show err
+            liftEffect $ exit 1
          Right (obj :: Commands) -> do
-            let bash = renderBash $ toBash obj
-            Console.log $ bash
+            pure <<< renderBash $ toBash obj
+    out <- case sourceFile of
+      Just f -> do
+         src <- readTextFile UTF8 f
+         pure (joinWith "\n" [src, bash])
+      Nothing -> pure bash
+    case outputFile of 
+      Nothing -> Console.log out
+      Just f -> writeTextFile UTF8 f out
 
 toBash :: Commands -> Bash Unit
 toBash cmds = do
