@@ -1,29 +1,43 @@
 module Main where
 
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while, if')
-import Control.Alt (map)
-import Control.Alternative (pure, when)
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
-import Data.Array (any, drop, null)
-import Data.BooleanAlgebra (not)
+import Data.Array (any, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.String.CodeUnits as String
-import Data.Unit (unit)
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class.Console as Console
 import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile)
-import Node.Process (argv, exit)
-import Prelude ((==), (*>), (&&), Unit, bind, discard, show, ($), (<>), (>>=))
+import Options.Applicative (Parser, execParser, fullDesc, help, info, long, metavar, short, strOption, switch)
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, when, ($), (&&), (*>), (<$>), (<*>), (<>), (==), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
+
+data Options = Options
+  { configFile   :: String
+  , compilerMode :: Boolean
+  }
+
+optionsP :: Parser Options
+optionsP = (\configFile compilerMode -> Options {configFile, compilerMode})
+      <$> strOption
+          ( long "config-file"
+         <> short 'f'
+         <> metavar "YAML-FILE"
+         <> help "Path to flags config yaml" )
+      <*> switch
+          ( long "build"
+         <> short 'b'
+         <> help "Whether to be quiet" )
+
 
 newtype ArgDescription = ArgDescription
   { name :: String
@@ -94,23 +108,9 @@ type Commands = Array Command
 
 main :: Effect Unit
 main = do
-  args <- argv
-  -- Drop node location and script location
-  configFile <- case (drop 2 args) of
-      [] -> pure Nothing
-      ["-"] -> pure Nothing
-      [f] -> pure (Just f)
-      _ -> do
-         Console.log $ "Usage:"
-         Console.log $ "  flags <config-file.yaml>"
-         Console.log $ "    Generate a bash script from a yaml command config"
-         Console.log $ "  flags -"
-         Console.log $ "    Generate a bash script from yaml provided via stdin"
-         exit 1
+  Options {configFile, compilerMode} <- execParser $ info optionsP fullDesc
   launchAff_ do
-    input <- case configFile of
-         Nothing -> readStdIn
-         Just f -> readTextFile UTF8 f
+    input <- readTextFile UTF8 configFile
     case parseFromYaml input >>= decodeJson of
          Left err -> Console.log $ show err
          Right (obj :: Commands) -> do

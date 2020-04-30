@@ -24,11 +24,12 @@ Some other bonuses:
 - [x] Yaml config
 - [x] Automatically generates the proper 'help' messages.
 - [x] Support '--' passthrough flag
+- [x] Default flags
+- [x] Required vs optional arguments
 
 Upcoming features:
 
-- [ ] Default values
-- [ ] Required vs optional arguments
+- [ ] Default args
 - [ ] Validate argument types (string, number, file, etc.)
 - [ ] Includes easy "include" command for shipping bash scripts
 - [ ] Npm install

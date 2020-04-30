@@ -12,6 +12,7 @@ You can edit this file as you like.
   , "node-fs-aff"
   , "node-process"
   , "node-streams"
+  , "optparse"
   , "psci-support"
   , "simple-json"
   , "string-parsers"
