@@ -11,6 +11,7 @@ import Data.Foldable (for_)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
 import Data.String.CodeUnits as String
+import Data.Unit (unit)
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
@@ -29,6 +30,7 @@ newtype ArgDescription = ArgDescription
   , description :: String
   , multiple :: Boolean
   , required :: Boolean
+  , default :: Maybe String
   }
 
 instance decodeJsonArgDescription :: DecodeJson ArgDescription where
@@ -39,7 +41,8 @@ instance decodeJsonArgDescription :: DecodeJson ArgDescription where
        description <- obj .:? "description" .!= ""
        multiple <- obj .:? "multiple" .!= false
        required <- obj .:? "required" .!= false
-       pure (ArgDescription { name, description, multiple, required })
+       default <- obj .:? "default" .!= Nothing
+       pure (ArgDescription { name, description, multiple, required, default })
 
 newtype FlagDescription = FlagDescription
   { shortName :: String
@@ -48,6 +51,7 @@ newtype FlagDescription = FlagDescription
   , multiple :: Boolean
   , hasArg :: Boolean
   , required :: Boolean
+  , default :: Maybe String
   }
 
 instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
@@ -65,7 +69,8 @@ instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
        multiple <- obj .:? "multiple" .!= false
        hasArg <- obj .:? "hasArg" .!= false
        required <- obj .:? "required" .!= false
-       pure (FlagDescription { shortName, longName,  description, multiple, hasArg, required })
+       default <- obj .:? "default" .!= Nothing
+       pure (FlagDescription { shortName, longName,  description, multiple, hasArg, required , default})
 
 
 newtype Command = Command
@@ -84,8 +89,6 @@ instance decodeJsonCommand :: DecodeJson Command where
        args <- obj .:? "args" .!= []
        flags <- obj .:? "flags" .!= []
        pure (Command {name, description, args, flags})
-
-
 
 type Commands = Array Command
 
@@ -211,6 +214,7 @@ renderCmd cmd@(Command {name}) = do
 
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
 renderCmdArgsAndFlagsParser cmd@(Command {flags}) = do
+  setDefaultFlags flags
   while "[[ $# -gt 0 ]]" $ do
      if' ("[[ -n " <> var "_skip_flag" <> " ]]") (captureArg *> shift *> line "continue") Nothing
      case_ (var "1") $ do
@@ -220,6 +224,13 @@ renderCmdArgsAndFlagsParser cmd@(Command {flags}) = do
       caseOption "*" $ do
          captureArg
          shift
+
+setDefaultFlags :: Array FlagDescription -> Bash Unit
+setDefaultFlags flags = do
+  for_ flags $ \(FlagDescription {longName, default}) -> do
+     case default of
+          Nothing -> pure unit
+          Just def -> assign longName def
 
 captureArg :: Bash Unit
 captureArg = do
