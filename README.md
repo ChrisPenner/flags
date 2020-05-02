@@ -8,6 +8,7 @@
 * [Usage](#usage)
   * [Flags Build](#flags-build)
   * [Flags Run](#flags-run)
+* [Config](#config)
 
 <!-- tocstop -->
 
@@ -194,3 +195,57 @@ You can also embed `flags run` into your script as a *shebang* by add this as yo
 Where `/usr/local/bin/flags` is replaced by the result of running `which flags` on your system.
 
 `flags run` looks for a flags.yaml config in the same directory as the script, but you can specify a config with `-f` if needed. Note that due to limitations of using a *shebang* unfortunately you can't specify any configuration options when using the *shebang* style.
+
+
+## Config
+
+```yaml
+# The name of the subcommand
+- name: add
+  # This description is printed in the help message
+  description: "Add a todo to the list"
+  # Argument configuration
+  args:
+      # The name of the argument 
+    - name: todo
+      # This description is printed in the help message
+      description: "The todos you'd like to add"
+      # (default: false) Whether multiple values can be provided for this argument
+      multiple: false
+      # (default: false) Whether the argument is required or optional
+      required: false
+      # (default: null) A default value for optional arguments
+      default: null
+# The name of the subcommand
+- name: "list"
+  # This description is printed in the help message
+  description: "List out your existing TODOs"
+  # Flags configuration
+  flags:
+      # (default: first char of long-name)
+    - shortName: "r"
+      # (required) Both the longname of the flag, and the name of the environment variable which it will be bound to.
+      # dashes will be replaced with underscores in variable names
+      longName: "reverse"
+      # This description is printed in the help message
+      description: "Reverse the TODO list"
+      # (default: false) Whether the flag can be provided multiple times
+      multiple: false
+      # (default: false) Whether the flag takes an argument
+      # Variables for flags without arguments will be unset by default
+      # and "true" if the arg is provided.
+      hasArg: false
+    - # (required) Both the longname of the flag, and the name of the environment variable which it will be bound to.
+      # dashes will be replaced with underscores in variable names
+      longName: "query"
+      # This description is printed in the help message
+      description: "List only TODOs containing this text"
+      # (default: false) Whether the flag takes an argument
+      # Variables for flags without arguments will be unset by default
+      # and "true" if the arg is provided.
+      hasArg: true
+      # Whether the flag is required. Only applies to flags with arguments
+      required: false
+      # Default value. Only applies to flags with arguments.
+      default: null
+```
