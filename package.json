@@ -11,9 +11,7 @@
     "build": "spago bundle-app",
     "publish": "np"
   },
-  "bin": {
-    "flags": "./flags.sh"
-  },
+  "bin": "./flags.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ChrisPenner/flags.git"

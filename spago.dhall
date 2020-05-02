@@ -8,6 +8,7 @@ You can edit this file as you like.
   , "argonaut"
   , "console"
   , "effect"
+  , "node-child-process"
   , "node-fs"
   , "node-fs-aff"
   , "node-process"

@@ -1,10 +1,12 @@
 module Main where
 
+
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while, if')
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
 import Data.Array (any, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
+import Data.List (List)
 import Data.Maybe (Maybe(..), optional)
 import Data.String (joinWith)
 import Data.String.CodeUnits as String
@@ -15,43 +17,69 @@ import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
 import Node.Encoding (Encoding(..))
 import Node.FS.Aff (readTextFile, writeTextFile)
+import Node.Path (FilePath)
 import Node.Process (exit)
-import Options.Applicative (Parser, execParser, fullDesc, help, info, long, metavar, short, strOption, switch)
-import Prelude (Unit, bind, discard, map, not, pure, show, unit, when, ($), (&&), (*>), (<$>), (<*>), (<>), (==), (>>=), (<<<))
+import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strOption, (<**>))
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, when, ($), (&&), (*>), (<$>), (<*>), (<>), (==), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
 
-data Options = Options
-  { configFile   :: String
-  , compilerMode :: Boolean
-  , sourceFile :: Maybe String
-  , outputFile :: Maybe String
-  }
+data Choice =
+    Run {configFile :: String, srcFile :: String, passthroughArgs :: List String}
+  | Build {configFile :: String, srcFile :: Maybe String, outputFile :: Maybe String}
 
-optionsP :: Parser Options
-optionsP = (\configFile compilerMode sourceFile outputFile -> Options {configFile, compilerMode, sourceFile, outputFile})
-      <$> strOption
+runOptionsP :: ParserInfo Choice
+runOptionsP =
+  info p (fullDesc <> progDesc "Parse arguments and flags provided after -- and run the provided source file against them.")
+    where
+      p =
+        (\configFile srcFile passthroughArgs -> Run {configFile, srcFile, passthroughArgs})
+          <$> configFileP
+          <*> (srcFileP false)
+          <*> argP
+
+
+buildOptionsP :: ParserInfo Choice
+buildOptionsP =
+  info p (fullDesc <> progDesc "Compile argument handling logic")
+    where
+      p =
+        (\configFile srcFile outputFile -> Build {configFile, srcFile, outputFile})
+        <$> configFileP
+        <*> optional (srcFileP true)
+        <*> optional outFileP
+
+
+configFileP :: Parser String
+configFileP =
+  strOption
           ( long "config-file"
          <> short 'f'
          <> metavar "YAML-FILE"
-         <> help "Path to flags config yaml" )
-      <*> switch
-          ( long "build"
-         <> short 'b'
-         <> help "Whether to be quiet" )
-      <*> optional (strOption
-          ( long "source"
-         <> short 's'
-         <> metavar "SOURCE-FILE"
-         <> help "Path to bash script" ))
-      <*> optional (strOption
-          ( long "out-file"
-         <> short 'o'
-         <> metavar "OUT-FILE"
-         <> help "Path to save compiled result" ))
+         <> help "Path to yaml file containing your flags config" )
 
+srcFileP :: Boolean -> Parser String
+srcFileP opt =
+  strOption
+  ( long "source"
+  <> short 's'
+  <> metavar "SOURCE-FILE"
+  <> help ("""Path to your bash script.""" <> if opt then "If omitted, only output flag parsing logic" else "" ))
+
+outFileP :: Parser String
+outFileP =
+  strOption
+  ( long "out-file"
+  <> short 'o'
+  <> metavar "OUT-FILE"
+  <> help "Path to write compiled result" )
+
+argP :: Parser (List String)
+argP = many (argument str (metavar "-- <script args>..."
+                           <> help "Arguments following -- will be parsed and handed off to your script"
+  ))
 
 newtype ArgDescription = ArgDescription
   { name :: String
@@ -120,25 +148,47 @@ instance decodeJsonCommand :: DecodeJson Command where
 
 type Commands = Array Command
 
-main :: Effect Unit
-main = do
-  Options {configFile, compilerMode, sourceFile, outputFile} <- execParser $ info optionsP fullDesc
-  launchAff_ do
-    input <- readTextFile UTF8 configFile
-    bash <- case parseFromYaml input >>= decodeJson of
+runBuild :: {configFile :: String, srcFile :: Maybe String, outputFile :: Maybe String} -> Aff Unit
+runBuild {configFile, outputFile, srcFile} = do
+  conf <- parseYamlConfig configFile
+  let bash = renderBash $ toBash conf
+  totalOutput <- case srcFile of
+    Nothing -> pure bash
+    Just f -> do
+         src <- readTextFile UTF8 f
+         pure (joinWith "\n" [src, bash])
+  case outputFile of
+    Nothing -> Console.log totalOutput
+    Just f ->
+      writeTextFile UTF8 f totalOutput
+
+parseYamlConfig :: FilePath -> Aff Commands
+parseYamlConfig configFile = do
+  input <- readTextFile UTF8 configFile
+  case parseFromYaml input >>= decodeJson of
          Left err -> do
             Console.error $ show err
             liftEffect $ exit 1
-         Right (obj :: Commands) -> do
-            pure <<< renderBash $ toBash obj
-    out <- case sourceFile of
-      Just f -> do
-         src <- readTextFile UTF8 f
-         pure (joinWith "\n" [src, bash])
-      Nothing -> pure bash
-    case outputFile of 
-      Nothing -> Console.log out
-      Just f -> writeTextFile UTF8 f out
+         Right (obj :: Commands) -> pure obj
+
+
+runRun :: {configFile :: String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
+runRun _ = pure unit
+
+fullP :: ParserInfo Choice
+fullP = info (p <**> helper) fullDesc
+  where 
+    p = hsubparser $
+          command "build" (buildOptionsP)
+          <> command "run" runOptionsP
+
+main :: Effect Unit
+main = do
+  choice <- execParser fullP
+  launchAff_ do
+    case choice of
+         Build buildData -> runBuild buildData
+         Run runData -> runRun runData
 
 toBash :: Commands -> Bash Unit
 toBash cmds = do

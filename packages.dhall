@@ -123,11 +123,12 @@ let upstream =
 
 let overrides = {=}
 
-let additions = { yayamll =
-       { dependencies = [] : List Text
-       , repo = "https://github.com/colehaus/purescript-yayamll"
-       , version = "master"
-       }
-}
+let additions =
+      { yayamll =
+        { dependencies = [] : List Text
+        , repo = "https://github.com/colehaus/purescript-yayamll"
+        , version = "master"
+        }
+      }
 
 in  upstream // overrides // additions

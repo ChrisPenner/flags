@@ -28,14 +28,3 @@ function list {
     $filterer | \
     $reverser
 }
-
-# No good, doesn't pass args
-# bash -c "$(flags config.yaml)"
-
-# tmpfile="$(mktemp)"
-# flags config.yaml > "$tmpfile"
-# source "$tmpfile"
-
-# https://stackoverflow.com/questions/32596123/why-source-command-doesnt-work-with-process-substitution-in-bash-3-2
-# Doesn't work in bash 3.2 (e.g. default bash on OSX)
-source <( flags config.yaml | tee out.sh )
