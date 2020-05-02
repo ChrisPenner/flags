@@ -7,7 +7,7 @@ import Data.Array (any, fromFoldable, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List (List)
-import Data.Maybe (Maybe(..), fromMaybe, optional)
+import Data.Maybe (Maybe(..), fromMaybe, maybe, optional)
 import Data.String (joinWith)
 import Data.String.CodeUnits as String
 import Data.Yaml (parseFromYaml)
@@ -19,7 +19,7 @@ import Node.ChildProcess (StdIOBehaviour(..), defaultExecSyncOptions, execFileSy
 import Node.Encoding (Encoding(..))
 import Node.FS (FileDescriptor)
 import Node.FS.Aff (readTextFile, writeTextFile)
-import Node.Path (FilePath)
+import Node.Path (FilePath, dirname, sep)
 import Node.Process (exit)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
 import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (&&), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=))
@@ -60,7 +60,7 @@ configFileP =
           ( long "config-file"
          <> short 'f'
          <> metavar "YAML-FILE"
-         <> help "Path to yaml file containing your flags config. Defaults to 'flags.yaml'" )
+         <> help "Path to yaml file containing your flags config. Defaults to 'flags.yaml' in the srcFile directory" )
 
 srcFileP :: Boolean -> Parser String
 srcFileP opt =
@@ -148,9 +148,16 @@ instance decodeJsonCommand :: DecodeJson Command where
 
 type Commands = Array Command
 
+readConfigFile :: {srcFilePath :: Maybe FilePath, configFilePath :: Maybe FilePath} ->  Aff Commands
+readConfigFile {srcFilePath, configFilePath} = 
+  parseYamlConfig actualConfigPath
+  where
+    actualConfigPath = fromMaybe defaultConfigPath configFilePath
+    defaultConfigPath = maybe "." dirname srcFilePath <> sep <> "flags.yaml"
+
 runBuild :: {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String} -> Aff Unit
 runBuild {configFile, outputFile, srcFile} = do
-  conf <- parseYamlConfig $ fromMaybe "flags.yaml" configFile
+  conf <- readConfigFile ({srcFilePath: srcFile, configFilePath: configFile})
   let bash = renderBash $ toBash conf
   totalOutput <- case srcFile of
     Nothing -> pure bash
@@ -174,7 +181,7 @@ parseYamlConfig configFile = do
 
 runRun :: {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
 runRun {configFile, srcFile, passthroughArgs} = do
-  conf <- parseYamlConfig $ fromMaybe "flags.yaml" configFile
+  conf <- readConfigFile ({srcFilePath: Just srcFile, configFilePath: configFile})
   let bash = renderBash $ toBash conf
   src <- readTextFile UTF8 srcFile
   let totalOutput = (joinWith "\n" [src, bash])

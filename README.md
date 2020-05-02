@@ -4,7 +4,8 @@
 <!-- toc GFM -->
 
 * [Magic](#magic)
-* [Examples](#examples)
+* [Example](#example)
+* [Usage](#usage)
 
 <!-- tocstop -->
 
@@ -12,8 +13,8 @@ Flags solves the "how the heck do I parse command line args" problem.
 
 What makes it different from the other 10000 solutions?
 
-The biggest difference is that you can use it with bash scripts and plugins
-without requiring ANY dependencies from your users!
+1. `flags` parses, validates, and generates help messages for all your arguments and flags from a completely declarative configuration.
+2.  You can compile your bash scripts and plugins so your users can enjoy them without ANY required dependencies!
 
 Some other bonuses:
 
@@ -28,11 +29,11 @@ Some other bonuses:
 - [x] Required vs optional arguments
 - [x] Npm install
 - [x] Default args
+- [x] Supports custom shebang: `#!/usr/local/bin/flags run`
 
 Upcoming features:
 
 - [ ] Validate argument types (string, number, file, etc.)
-- [ ] Includes easy "include" command for shipping bash scripts
 - [ ] Tab-complete
 - [ ] Config init
 
@@ -42,17 +43,17 @@ Easy! Flags just generates bash for you!
 
 ## Magic
 
-During development of your script or plugin you'll need the `flags` program locally, 
+During development of your script or plugin you'll run the `flags` program locally, 
 it parses your configuration and helps you run your program.
-When you're ready to ship your script or plugin, you run it in compiler mode,
-bundle the generated bash file with your plugin or script (or literally copy-paste it into your script)
-then just `source` the compiled bash!
 
-## Examples
+When you're ready to ship your script or plugin, simply run `flags build` to activate compiler mode.
+It'll bundle generated bash with your plugin or script into a dependency-free bash script you can distribute to your users.
+
+## Example
 
 Let's say we're writing a todo app, as all programmers are legally obligated to do every 3 months.
 
-Here's how you'd use it:
+First off, here's what it looks like to use the app:
 
 ```bash
 $ todo add "Microwave Pizza Pops™"
@@ -63,7 +64,7 @@ $ todo list
      1 Finish writing the README
      2 Microwave Pizza Pops™
 
-# List todos in reverse using '-r' short-flag
+# List todos in reverse using an optional '-r' short-flag
 $ todo list -r
      2 Microwave Pizza Pops™
      1 Finish writing the README
@@ -74,17 +75,26 @@ $ todo list --query Pizza
 
 # Print help/usage info
 $ todo help
+Usage:
+  todo <command>
+
+More info:
+  todo [command] --help
+
+Commands:
+  todo add [todo...]
+  todo list  [-r|--reverse] [-q|--query=<query>]
 ```
 
-We can see we've got two sub commands; `add` and `list`.
-We've also got a flag option for `list` called `query` which takes an argument.
+We can see we've got three sub commands; `add`, `list`, and `help` (which is generated for you).
+
+We've also got some flag option for `list`. One called `query` which takes an argument, one called `reverse` with a -r short-flag
 
 
-Here's the source:
-
+Here's the whole source:
 
 ```bash
-#!/bin/bash
+#!/usr/local/bin/flags run
 
 LIST_LOCATION="$HOME/.todos"
 
@@ -99,14 +109,12 @@ function add {
 # Define our 'list' sub command
 # Our flags for this sub-command will be parsed and provided as environment variables
 function list {
-    # "reverse" will be true if specified, and blank otherwise
-    if $reverse; then
+    if [[ -n "$reverse" ]]; then
         reverser="tac"
     else
         reverser="cat"
     fi
 
-    # "query" will be populated if provided
     if [[ -n "$query" ]]; then
       filterer="grep $query"
     else
@@ -118,37 +126,32 @@ function list {
     $reverser
 }
 
-# Here's where we specify our commands and flags, as well as their help text and descriptions
-source <(spago run -q <<-'EOF'
+# We don't need to call any of these functions, 'flags' will pick the right command and run it for us.
+```
+
+And we've got a config file at `flags.yaml` which looks like this:
+
+```yaml
 - name: add
   description: "Add a todo to the list"
   args:
     - name: todo
-      description: "The todo you'd like to add"
-      acceptMultiple: true
-  flags: []
+      description: "The todos you'd like to add"
+      multiple: true
 - name: "list"
   description: "List out your existing TODOs"
-  args: []
   flags:
     - longName: "reverse"
-      shortName: "r"
       description: "Reverse the TODO list"
-      acceptMultiple: false
-      hasArg: false
     - longName: "query"
-      shortName: "q"
       description: "List only TODOs containing this text"
-      acceptMultiple: false
       hasArg: true
-EOF
-)
 ```
 
-Notice the `source` command? That's where the magic happens.
+That's it!
 
-`flags` will generate a command line parser from your config, then run the appropriate function
-with args available as environment variables of the appropriate name!
+## Usage
 
+There are two main commands in `flags`: `run` and `build`
 
-You can find this example in [./todo.sh](./todo.sh) .
+`run` is a helper for when you're working on your script 

@@ -1,9 +1,9 @@
 #!/usr/local/bin/flags run
 
-# set -x
 LIST_LOCATION="$HOME/.todos"
 
 # Define our 'add' sub command
+# Arguments will be provided as expected in "$@"
 function add {
   for todo in "$@" ; do
     echo "$todo" >> "$LIST_LOCATION"
@@ -11,6 +11,7 @@ function add {
 }
 
 # Define our 'list' sub command
+# Our flags for this sub-command will be parsed and provided as environment variables
 function list {
     if [[ -n "$reverse" ]]; then
         reverser="tac"

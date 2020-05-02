@@ -11,6 +11,7 @@ You can edit this file as you like.
   , "node-child-process"
   , "node-fs"
   , "node-fs-aff"
+  , "node-path"
   , "node-process"
   , "node-streams"
   , "optparse"
