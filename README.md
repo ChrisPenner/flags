@@ -26,14 +26,15 @@ Some other bonuses:
 - [x] Support '--' passthrough flag
 - [x] Default flags
 - [x] Required vs optional arguments
+- [x] Npm install
+- [x] Default args
 
 Upcoming features:
 
-- [ ] Default args
 - [ ] Validate argument types (string, number, file, etc.)
 - [ ] Includes easy "include" command for shipping bash scripts
-- [ ] Npm install
 - [ ] Tab-complete
+- [ ] Config init
 
 How do we achieve all this ✨magic✨ you ask?
 

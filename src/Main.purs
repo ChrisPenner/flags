@@ -7,7 +7,7 @@ import Data.Array (any, fromFoldable, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List (List)
-import Data.Maybe (Maybe(..), optional)
+import Data.Maybe (Maybe(..), fromMaybe, optional)
 import Data.String (joinWith)
 import Data.String.CodeUnits as String
 import Data.Yaml (parseFromYaml)
@@ -15,13 +15,13 @@ import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
-import Node.ChildProcess (StdIOBehaviour(..), defaultExecOptions, defaultExecSyncOptions, execFile, execFileSync, pipe)
+import Node.ChildProcess (StdIOBehaviour(..), defaultExecSyncOptions, execFileSync)
 import Node.Encoding (Encoding(..))
 import Node.FS (FileDescriptor)
 import Node.FS.Aff (readTextFile, writeTextFile)
 import Node.Path (FilePath)
-import Node.Process (exit, stderr, stdin, stdout)
-import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strOption, (<**>))
+import Node.Process (exit)
+import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
 import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (&&), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -29,8 +29,8 @@ readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
 
 data Choice =
-    Run {configFile :: String, srcFile :: String, passthroughArgs :: List String}
-  | Build {configFile :: String, srcFile :: Maybe String, outputFile :: Maybe String}
+    Run {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String}
+  | Build {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String}
 
 runOptionsP :: ParserInfo Choice
 runOptionsP =
@@ -38,7 +38,7 @@ runOptionsP =
     where
       p =
         (\configFile srcFile passthroughArgs -> Run {configFile, srcFile, passthroughArgs})
-          <$> configFileP
+          <$> optional configFileP
           <*> (srcFileP false)
           <*> argP
 
@@ -49,7 +49,7 @@ buildOptionsP =
     where
       p =
         (\configFile srcFile outputFile -> Build {configFile, srcFile, outputFile})
-        <$> configFileP
+        <$> optional configFileP
         <*> optional (srcFileP true)
         <*> optional outFileP
 
@@ -60,14 +60,12 @@ configFileP =
           ( long "config-file"
          <> short 'f'
          <> metavar "YAML-FILE"
-         <> help "Path to yaml file containing your flags config" )
+         <> help "Path to yaml file containing your flags config. Defaults to 'flags.yaml'" )
 
 srcFileP :: Boolean -> Parser String
 srcFileP opt =
-  strOption
-  ( long "source"
-  <> short 's'
-  <> metavar "SOURCE-FILE"
+  strArgument
+  ( metavar "SOURCE-FILE"
   <> help ("""Path to your bash script.""" <> if opt then "If omitted, only output flag parsing logic" else "" ))
 
 outFileP :: Parser String
@@ -150,15 +148,15 @@ instance decodeJsonCommand :: DecodeJson Command where
 
 type Commands = Array Command
 
-runBuild :: {configFile :: String, srcFile :: Maybe String, outputFile :: Maybe String} -> Aff Unit
+runBuild :: {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String} -> Aff Unit
 runBuild {configFile, outputFile, srcFile} = do
-  conf <- parseYamlConfig configFile
+  conf <- parseYamlConfig $ fromMaybe "flags.yaml" configFile
   let bash = renderBash $ toBash conf
   totalOutput <- case srcFile of
     Nothing -> pure bash
     Just f -> do
          src <- readTextFile UTF8 f
-         pure (joinWith "\n" [src, bash])
+         pure (joinWith "\n" ["#!/bin/bash", src, bash])
   case outputFile of
     Nothing -> Console.log totalOutput
     Just f ->
@@ -174,9 +172,9 @@ parseYamlConfig configFile = do
          Right (obj :: Commands) -> pure obj
 
 
-runRun :: {configFile :: String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
+runRun :: {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
 runRun {configFile, srcFile, passthroughArgs} = do
-  conf <- parseYamlConfig configFile
+  conf <- parseYamlConfig $ fromMaybe "flags.yaml" configFile
   let bash = renderBash $ toBash conf
   src <- readTextFile UTF8 srcFile
   let totalOutput = (joinWith "\n" [src, bash])

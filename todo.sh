@@ -1,4 +1,4 @@
-#!/usr/local/bin/bash
+#!/usr/local/bin/flags run
 
 # set -x
 LIST_LOCATION="$HOME/.todos"
