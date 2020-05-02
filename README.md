@@ -6,6 +6,8 @@
 * [Magic](#magic)
 * [Example](#example)
 * [Usage](#usage)
+  * [Flags Build](#flags-build)
+  * [Flags Run](#flags-run)
 
 <!-- tocstop -->
 
@@ -154,4 +156,41 @@ That's it!
 
 There are two main commands in `flags`: `run` and `build`
 
-`run` is a helper for when you're working on your script 
+### Flags Build
+
+`build` is used to compile `flags`' argument handling logic into a simple bash script.
+
+This is useful either when distributing your script to others where `flags` may not be installed. You may also wish to to do this for your scripts locally to gain a teensy bonus on startup time for your script (though `flags` is generally pretty fast).
+
+To compile our `todo` cli we'd run this:
+
+```bash
+flags build todo.sh > todo-cli
+```
+
+Where `todo-cli` is the location you'd like to write the resulting bash script. You can also optionally provide a `-o todo-cli` if you prefer to write directly rather than redirecting stdout.
+
+The resulting script will include your logic from the original script, as well as all of the argument and flag parsing logic, and will patch the shebang to be `#!/bin/bash`.
+
+### Flags Run
+
+`run` is a command for when you're working on your script. 
+Pass it a script and some args and `flags` will parse the arguments and run the script.
+
+For our todo-list example it looks like this:
+
+```bash
+flags run todo.sh -- list -r
+     2 Microwave Pizza Pops™
+     1 Finish writing the README
+```
+
+You can also embed `flags run` into your script as a *shebang* by add this as your script's first line:
+
+```bash
+#!/usr/local/bin/flags run
+```
+
+Where `/usr/local/bin/flags` is replaced by the result of running `which flags` on your system.
+
+`flags run` looks for a flags.yaml config in the same directory as the script, but you can specify a config with `-f` if needed. Note that due to limitations of using a *shebang* unfortunately you can't specify any configuration options when using the *shebang* style.
