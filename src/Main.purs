@@ -3,7 +3,7 @@ module Main where
 
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while, if')
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
-import Data.Array (any, null)
+import Data.Array (any, fromFoldable, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List (List)
@@ -15,12 +15,14 @@ import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
+import Node.ChildProcess (StdIOBehaviour(..), defaultExecOptions, defaultExecSyncOptions, execFile, execFileSync, pipe)
 import Node.Encoding (Encoding(..))
+import Node.FS (FileDescriptor)
 import Node.FS.Aff (readTextFile, writeTextFile)
 import Node.Path (FilePath)
-import Node.Process (exit)
+import Node.Process (exit, stderr, stdin, stdout)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strOption, (<**>))
-import Prelude (Unit, bind, discard, map, not, pure, show, unit, when, ($), (&&), (*>), (<$>), (<*>), (<>), (==), (>>=))
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (&&), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
@@ -173,7 +175,21 @@ parseYamlConfig configFile = do
 
 
 runRun :: {configFile :: String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
-runRun _ = pure unit
+runRun {configFile, srcFile, passthroughArgs} = do
+  conf <- parseYamlConfig configFile
+  let bash = renderBash $ toBash conf
+  src <- readTextFile UTF8 srcFile
+  let totalOutput = (joinWith "\n" [src, bash])
+  void <<< liftEffect $ execFileSync "/bin/bash" (["-c", totalOutput, srcFile] <> fromFoldable passthroughArgs) (defaultExecSyncOptions{stdio=proxyPipes})
+
+
+proxyPipes :: Array (Maybe StdIOBehaviour)
+proxyPipes = [ Just (ShareFD (unsafeCoerce 0 :: FileDescriptor))
+             , Just (ShareFD (unsafeCoerce 1 :: FileDescriptor))
+             , Just (ShareFD (unsafeCoerce 2 :: FileDescriptor))
+             ]
+
+
 
 fullP :: ParserInfo Choice
 fullP = info (p <**> helper) fullDesc
