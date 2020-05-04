@@ -1,7 +1,7 @@
 module Main where
 
 
-import Bash (Bash, append, assign, caseOption, case_, echoErrLn, line, quoted, renderBash, scriptName, shift, subshell, var, while, if')
+import Bash (Bash, append, assign, caseOption, case_, echoErrLn, if', indented, line, quoted, renderBash, scriptName, shift, subshell, var, while)
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
 import Data.Array (any, fromFoldable, null)
 import Data.Either (Either(..))
@@ -10,6 +10,7 @@ import Data.List (List)
 import Data.Maybe (Maybe(..), fromMaybe, maybe, optional)
 import Data.String (joinWith, Pattern(..), Replacement(..), toLower, replace)
 import Data.String.CodeUnits as String
+import Data.Tuple (Tuple(..))
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
@@ -90,6 +91,7 @@ data ArgType =
   | Dir
   | Str
   | Number
+  | Path
 
 instance decodeJsonArgType :: DecodeJson ArgType where
   decodeJson json = do
@@ -99,6 +101,7 @@ instance decodeJsonArgType :: DecodeJson ArgType where
             "number" -> pure Number
             "file" -> pure File
             "dir" -> pure Dir
+            "path" -> pure Path
             _ -> Left $ "Unknown arg type: " <> typeString
 
 
@@ -174,7 +177,7 @@ instance decodeJsonCommand :: DecodeJson Command where
 type Commands = Array Command
 
 readConfigFile :: {srcFilePath :: Maybe FilePath, configFilePath :: Maybe FilePath} ->  Aff Commands
-readConfigFile {srcFilePath, configFilePath} = 
+readConfigFile {srcFilePath, configFilePath} =
   parseYamlConfig actualConfigPath
   where
     actualConfigPath = fromMaybe defaultConfigPath configFilePath
@@ -264,7 +267,7 @@ proxyPipes = [ Just (ShareFD (unsafeCoerce 0 :: FileDescriptor))
 
 fullP :: ParserInfo Choice
 fullP = info (p <**> helper) fullDesc
-  where 
+  where
     p = hsubparser $
           command "build" (buildOptionsP)
           <> command "run" runOptionsP
@@ -292,7 +295,7 @@ initCommandsVars :: Commands -> Bash Unit
 initCommandsVars cmds = do
   for_ cmds $ \(Command {flags}) -> do
     for_ flags $ \(FlagDescription {longName}) -> do
-      line $ "local " <> longName
+      line $ "local " <> flagToVar longName
 
 defaultSubcommand :: Commands -> Bash Unit
 defaultSubcommand cmds = do
@@ -392,7 +395,7 @@ setDefaultFlags flags = do
   for_ flags $ \(FlagDescription {longName, default}) -> do
      case default of
           Nothing -> pure unit
-          Just def -> assign longName def
+          Just def -> assign (flagToVar longName) def
 
 captureArg :: Bash Unit
 captureArg = do
@@ -411,17 +414,36 @@ helpCase cmd = do
     line "exit 1"
 
 renderFlagCase :: FlagDescription -> Bash Unit
-renderFlagCase (FlagDescription {longName, shortName, hasArg, multiple}) = do
+renderFlagCase (FlagDescription {longName, shortName, hasArg, multiple, typ}) = do
+  let flagVarName = flagToVar longName
   caseOption (joinWith "" ["--", longName, "|", "-", shortName ]) $ do
     shift
     if hasArg
       then do
+         validate flagVarName typ
          if multiple
-          then append longName (var "1")
-          else assign longName (var "1")
+          then append flagVarName(var "1")
+          else assign flagVarName (var "1")
          shift
       else do
-         assign longName "true"
+         assign flagVarName "true"
 
 flagToVar :: String -> String
 flagToVar = toLower >>> replace (Pattern "-") (Replacement "_")
+
+
+validate :: String -> ArgType -> Bash Unit
+validate varName typ =
+  if' ("! " <> cond) invalidHandler Nothing
+  where
+    Tuple cond msg = case typ of
+       Str -> Tuple "true" ""
+       Number -> Tuple "[[ \"$1\" =~ \"^[+-]?[0-9]+$\" ]]" "expected integer"
+       File -> Tuple "[[ -f \"$1\" ]]" "expected a file"
+       Dir -> Tuple "[[ -d \"$1\" ]]" "expected a directory"
+       Path ->  Tuple "[[ -f \"$1\" || -d \"$1\" ]]" "expected a file or directory"
+    invalidHandler = do
+       indented 1 $ do
+         echoErrLn $ "Problem with flag: " <> varName
+         echoErrLn $ msg
+         line "exit 1"
