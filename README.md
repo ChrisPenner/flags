@@ -34,12 +34,12 @@ Some other bonuses:
 - [x] Npm install
 - [x] Default args
 - [x] Supports custom shebang: `#!/usr/local/bin/flags run`
+- [x] Init command
 
 Upcoming features:
 
 - [ ] Validate argument types (string, number, file, etc.)
 - [ ] Tab-complete
-- [ ] Config init
 
 How do we achieve all this ✨magic✨ you ask?
 

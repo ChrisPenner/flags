@@ -85,12 +85,30 @@ argP = many (argument str (metavar "-- <script args>..."
                            <> help "Arguments following -- will be parsed and handed off to your script"
   ))
 
+data ArgType =
+    File
+  | Dir
+  | Str
+  | Number
+
+instance decodeJsonArgType :: DecodeJson ArgType where
+  decodeJson json = do
+       typeString <- decodeJson json
+       case typeString of
+            "string" -> pure Str
+            "number" -> pure Number
+            "file" -> pure File
+            "dir" -> pure Dir
+            _ -> Left $ "Unknown arg type: " <> typeString
+
+
 newtype ArgDescription = ArgDescription
   { name :: String
   , description :: String
   , multiple :: Boolean
   , required :: Boolean
   , default :: Maybe String
+  , typ :: ArgType
   }
 
 instance decodeJsonArgDescription :: DecodeJson ArgDescription where
@@ -102,7 +120,8 @@ instance decodeJsonArgDescription :: DecodeJson ArgDescription where
        multiple <- obj .:? "multiple" .!= false
        required <- obj .:? "required" .!= false
        default <- obj .:? "default" .!= Nothing
-       pure (ArgDescription { name, description, multiple, required, default })
+       typ <- obj .:? "type" .!= Str
+       pure (ArgDescription { name, description, multiple, required, default, typ })
 
 newtype FlagDescription = FlagDescription
   { shortName :: String
@@ -112,6 +131,7 @@ newtype FlagDescription = FlagDescription
   , hasArg :: Boolean
   , required :: Boolean
   , default :: Maybe String
+  , typ :: ArgType
   }
 
 instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
@@ -130,7 +150,8 @@ instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
        hasArg <- obj .:? "hasArg" .!= false
        required <- obj .:? "required" .!= false
        default <- obj .:? "default" .!= Nothing
-       pure (FlagDescription { shortName, longName,  description, multiple, hasArg, required , default})
+       typ <- obj .:? "type" .!= Str
+       pure (FlagDescription { shortName, longName,  description, multiple, hasArg, required , default, typ})
 
 
 newtype Command = Command
