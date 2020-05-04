@@ -1,0 +1,19 @@
+# List of subcommands
+- name: test
+  flags:
+    - shortName: "f"
+      longName: "a-file"
+      hasArg: true
+      type: file
+    - shortName: "d"
+      longName: "a-dir"
+      hasArg: true
+      type: dir
+    - shortName: "p"
+      longName: "a-path"
+      hasArg: true
+      type: path
+    - shortName: "n"
+      longName: "a-num"
+      hasArg: true
+      type: number

@@ -16,7 +16,7 @@ import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Class (liftEffect)
 import Effect.Class.Console as Console
-import Node.ChildProcess (StdIOBehaviour(..), defaultExecSyncOptions, execFileSync)
+import Node.ChildProcess (StdIOBehaviour(..), defaultSpawnOptions, spawn)
 import Node.Encoding (Encoding(..))
 import Node.FS (FileDescriptor)
 import Node.FS.Aff (exists, readTextFile, writeTextFile)
@@ -147,7 +147,7 @@ instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
               case String.charAt 0 longName of
                    Nothing -> Left err
                    Just c -> pure (String.singleton c)
-            Right s -> s
+            Right (s :: String) -> pure s
        description <- obj .:? "description" .!= ""
        multiple <- obj .:? "multiple" .!= false
        hasArg <- obj .:? "hasArg" .!= false
@@ -213,7 +213,7 @@ runRun {configFile, srcFile, passthroughArgs} = do
   let bash = renderBash $ toBash conf
   src <- readTextFile UTF8 srcFile
   let totalOutput = (joinWith "\n" [src, bash])
-  void <<< liftEffect $ execFileSync "/bin/bash" (["-c", totalOutput, srcFile] <> fromFoldable passthroughArgs) (defaultExecSyncOptions{stdio=proxyPipes})
+  void <<< liftEffect $ spawn "/bin/bash" (["-c", totalOutput, srcFile] <> fromFoldable passthroughArgs) (defaultSpawnOptions{stdio=proxyPipes})
 
 runInit :: Aff Unit
 runInit = do
@@ -284,7 +284,6 @@ main = do
 
 toBash :: Commands -> Bash Unit
 toBash cmds = do
-  line "#!/bin/bash"
   subshell $ do
     line "_args=()"
     case_ (var "1") $ do
@@ -438,7 +437,7 @@ validate varName typ =
   where
     Tuple cond msg = case typ of
        Str -> Tuple "true" ""
-       Number -> Tuple "[[ \"$1\" =~ \"^[+-]?[0-9]+$\" ]]" "expected integer"
+       Number -> Tuple "[[ \"$1\" =~ ^[+-]?[0-9]+$ ]]" "expected integer"
        File -> Tuple "[[ -f \"$1\" ]]" "expected a file"
        Dir -> Tuple "[[ -d \"$1\" ]]" "expected a directory"
        Path ->  Tuple "[[ -f \"$1\" || -d \"$1\" ]]" "expected a file or directory"
