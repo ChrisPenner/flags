@@ -8,7 +8,7 @@ import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List (List)
 import Data.Maybe (Maybe(..), fromMaybe, maybe, optional)
-import Data.String (joinWith)
+import Data.String (joinWith, Pattern(..), Replacement(..), toLower, replace)
 import Data.String.CodeUnits as String
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
@@ -18,11 +18,11 @@ import Effect.Class.Console as Console
 import Node.ChildProcess (StdIOBehaviour(..), defaultExecSyncOptions, execFileSync)
 import Node.Encoding (Encoding(..))
 import Node.FS (FileDescriptor)
-import Node.FS.Aff (readTextFile, writeTextFile)
+import Node.FS.Aff (exists, readTextFile, writeTextFile)
 import Node.Path (FilePath, dirname, sep)
 import Node.Process (exit)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
-import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (&&), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=))
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (&&), (*>), (<$>), (<*>), (<<<), (>>>), (<>), (==), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
@@ -31,6 +31,7 @@ readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
 data Choice =
     Run {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String}
   | Build {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String}
+  | Init
 
 runOptionsP :: ParserInfo Choice
 runOptionsP =
@@ -53,6 +54,9 @@ buildOptionsP =
         <*> optional (srcFileP true)
         <*> optional outFileP
 
+initOptionsP :: ParserInfo Choice
+initOptionsP =
+  info (pure Init) (fullDesc <> progDesc "Initialize a flags.yaml in the current directory")
 
 configFileP :: Parser String
 configFileP =
@@ -187,6 +191,47 @@ runRun {configFile, srcFile, passthroughArgs} = do
   let totalOutput = (joinWith "\n" [src, bash])
   void <<< liftEffect $ execFileSync "/bin/bash" (["-c", totalOutput, srcFile] <> fromFoldable passthroughArgs) (defaultExecSyncOptions{stdio=proxyPipes})
 
+runInit :: Aff Unit
+runInit = do
+  existingConfig <- exists "./flags.yaml"
+  if existingConfig then do
+    Console.error "Refusing to overwrite existing flags.yaml"
+    liftEffect $ exit 1
+                    else do
+    writeTextFile UTF8 "./flags.yaml" initYaml
+
+initYaml :: String
+initYaml = """# List of subcommands
+- name: command-name
+  # This description is printed in the help message
+  description: "This is a command"
+  # Argument configuration
+  args:
+      # The name of a positional argument
+    - name: positional-argument
+      # This description is printed in the help message
+      description: "A positional argument"
+      # (default: false) Whether multiple values can be provided for this argument
+      multiple: false
+      # (default: false) Whether the argument is required or optional
+      required: false
+      # (default: null) A default value for optional arguments
+      default: null
+  flags:
+      # (default: first char of long-name)
+    - shortName: "f"
+      # (required) Both the longname of the flag, and the name of the environment variable which it will be bound to.
+      # dashes will be replaced with underscores in variable names
+      longName: "flag"
+      # This description is printed in the help message
+      description: "A flag option"
+      # (default: false) Whether the flag can be provided multiple times
+      multiple: false
+      # (default: false) Whether the flag takes an argument
+      # Variables for flags without arguments will be unset by default
+      # and "true" if the arg is provided.
+      hasArg: false
+"""
 
 proxyPipes :: Array (Maybe StdIOBehaviour)
 proxyPipes = [ Just (ShareFD (unsafeCoerce 0 :: FileDescriptor))
@@ -202,6 +247,7 @@ fullP = info (p <**> helper) fullDesc
     p = hsubparser $
           command "build" (buildOptionsP)
           <> command "run" runOptionsP
+          <> command "init" initOptionsP
 
 main :: Effect Unit
 main = do
@@ -210,6 +256,7 @@ main = do
     case choice of
          Build buildData -> runBuild buildData
          Run runData -> runRun runData
+         Init -> runInit
 
 toBash :: Commands -> Bash Unit
 toBash cmds = do
@@ -354,3 +401,6 @@ renderFlagCase (FlagDescription {longName, shortName, hasArg, multiple}) = do
          shift
       else do
          assign longName "true"
+
+flagToVar :: String -> String
+flagToVar = toLower >>> replace (Pattern "-") (Replacement "_")
