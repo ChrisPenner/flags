@@ -8,6 +8,7 @@
 * [Usage](#usage)
   * [Flags Build](#flags-build)
   * [Flags Run](#flags-run)
+  * [Flags Run](#flags-run-1)
 * [Config](#config)
 
 <!-- tocstop -->
@@ -155,11 +156,11 @@ That's it!
 
 ## Usage
 
-There are two main commands in `flags`: `run` and `build`
+There are three main commands in `flags`: `run`, `build`, `init`
 
 ### Flags Build
 
-`build` is used to compile `flags`' argument handling logic into a simple bash script.
+`flags build` is used to compile `flags`' argument handling logic into a simple bash script.
 
 This is useful either when distributing your script to others where `flags` may not be installed. You may also wish to to do this for your scripts locally to gain a teensy bonus on startup time for your script (though `flags` is generally pretty fast).
 
@@ -175,7 +176,7 @@ The resulting script will include your logic from the original script, as well a
 
 ### Flags Run
 
-`run` is a command for when you're working on your script. 
+`flags run` is a command for when you're working on your script. 
 Pass it a script and some args and `flags` will parse the arguments and run the script.
 
 For our todo-list example it looks like this:
@@ -196,6 +197,9 @@ Where `/usr/local/bin/flags` is replaced by the result of running `which flags` 
 
 `flags run` looks for a flags.yaml config in the same directory as the script, but you can specify a config with `-f` if needed. Note that due to limitations of using a *shebang* unfortunately you can't specify any configuration options when using the *shebang* style.
 
+### Flags Run
+
+`flags init` will create a helpful sample `flags.yaml` in the current directory.
 
 ## Config
 
