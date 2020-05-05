@@ -3,7 +3,7 @@ module Main where
 
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, if', indented, line, quoted, renderBash, scriptName, shift, subshell, var, while)
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
-import Data.Array (any, fromFoldable, null)
+import Data.Array (any, drop, fromFoldable, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List (List)
@@ -21,7 +21,7 @@ import Node.Encoding (Encoding(..))
 import Node.FS (FileDescriptor)
 import Node.FS.Aff (exists, readTextFile, writeTextFile)
 import Node.Path (FilePath, dirname, sep)
-import Node.Process (exit)
+import Node.Process (argv, exit)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
 import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (&&), (*>), (<$>), (<*>), (<<<), (>>>), (<>), (==), (>>=))
 import Unsafe.Coerce (unsafeCoerce)
@@ -30,7 +30,7 @@ readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
 
 data Choice =
-    Run {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String}
+    Run {configFile :: Maybe String, srcFile :: String}
   | Build {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String}
   | Init
 
@@ -39,7 +39,7 @@ runOptionsP =
   info p (fullDesc <> progDesc "Parse arguments and flags provided after -- and run the provided source file against them.")
     where
       p =
-        (\configFile srcFile passthroughArgs -> Run {configFile, srcFile, passthroughArgs})
+        (\configFile srcFile _ -> Run {configFile, srcFile})
           <$> optional configFileP
           <*> (srcFileP false)
           <*> argP
@@ -207,12 +207,16 @@ parseYamlConfig configFile = do
          Right (obj :: Commands) -> pure obj
 
 
-runRun :: {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
-runRun {configFile, srcFile, passthroughArgs} = do
+runRun :: {configFile :: Maybe String, srcFile :: String} -> Aff Unit
+runRun {configFile, srcFile} = do
   conf <- readConfigFile ({srcFilePath: Just srcFile, configFilePath: configFile})
   let bash = renderBash $ toBash conf
   src <- readTextFile UTF8 srcFile
   let totalOutput = (joinWith "\n" [src, bash])
+  args <- liftEffect argv
+  -- Strip off the redundant node args
+  -- [node-exe, flags-exe, run, src-script]
+  let passthroughArgs = drop 4 args
   void <<< liftEffect $ spawn "/bin/bash" (["-c", totalOutput, srcFile] <> fromFoldable passthroughArgs) (defaultSpawnOptions{stdio=proxyPipes})
 
 runInit :: Aff Unit
