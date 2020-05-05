@@ -1,7 +1,7 @@
 module Main where
 
 
-import Bash (Bash, append, assign, caseOption, case_, echoErrLn, if', indented, line, quoted, renderBash, scriptName, shift, subshell, var, while)
+import Bash (Bash, append, assign, caseOption, case_, echoErrLn, if', indented, line, quoted, renderBash, scriptName, shift, subshell, var, while, inc)
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
 import Data.Array (any, null)
 import Data.Array as Array
@@ -432,10 +432,18 @@ initializeArgs args = do
 
   assign "_argNames" ("( " <> argNames <> " )")
   assign "_multiples" ("( " <> multiples <> " )")
+  assign "_i" "0"
 
 captureArg :: Bash Unit
 captureArg = do
-  line $ "_args+=(" <> (var "1") <> ")"
+  if' "${_multiples[$_i]}" appendArg (Just assignArg)
+    where
+      assignArg = indented 1 $ do
+         line "eval \"${_argNames[$_i]}=\\\"$1\\\"\""
+         inc "_i"
+      appendArg = indented 1 $ do
+        line $ "eval \"${_argNames[$_i]}+=($1)\""
+        {-- line $ "declare \"${_argNames[$_i]}\"+=" <> var "1" --}
 
 skipFlagCase :: Bash Unit
 skipFlagCase = do

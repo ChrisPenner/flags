@@ -17,3 +17,11 @@
       longName: "a-num"
       hasArg: true
       type: number
+- name: args
+  args:
+    - name: single
+      multiple: false
+    - name: second
+      multiple: false
+    - name: multiple
+      multiple: true

@@ -86,3 +86,5 @@ echoErrLn s = line $ "echo \"" <> s <> "\" >&2"
 scriptName :: String
 scriptName = var "0"
 
+inc :: String -> Bash Unit
+inc c = line $ c <> "=$((" <> c <> "+1))"
