@@ -3,11 +3,11 @@ module Main where
 
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, if', indented, line, quoted, renderBash, scriptName, shift, subshell, var, while)
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
-import Data.Array (any, drop, fromFoldable, null)
+import Data.Array (any, drop, filter, fromFoldable, null)
 import Data.Either (Either(..))
 import Data.Foldable (for_)
 import Data.List (List)
-import Data.Maybe (Maybe(..), fromMaybe, maybe, optional)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe, optional)
 import Data.String (joinWith, Pattern(..), Replacement(..), toLower, replace)
 import Data.String.CodeUnits as String
 import Data.Tuple (Tuple(..))
@@ -23,7 +23,7 @@ import Node.FS.Aff (exists, readTextFile, writeTextFile)
 import Node.Path (FilePath, dirname, sep)
 import Node.Process (argv, exit)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
-import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (&&), (*>), (<$>), (<*>), (<<<), (>>>), (<>), (==), (>>=))
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (*>), (/=), (<$>), (<*>), (<<<), (<>), (==), (>>=), (>>>))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
@@ -131,10 +131,7 @@ newtype FlagDescription = FlagDescription
   , longName :: String
   , description :: String
   , multiple :: Boolean
-  , hasArg :: Boolean
-  , required :: Boolean
-  , default :: Maybe String
-  , typ :: ArgType
+  , arg :: Maybe FlagArg
   }
 
 instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
@@ -150,11 +147,23 @@ instance decodeJsonFlagDescription :: DecodeJson FlagDescription where
             Right (s :: String) -> pure s
        description <- obj .:? "description" .!= ""
        multiple <- obj .:? "multiple" .!= false
-       hasArg <- obj .:? "hasArg" .!= false
+       arg <- obj .:? "arg" .!= Nothing
+       pure (FlagDescription { shortName, longName,  description, multiple, arg})
+
+newtype FlagArg = FlagArg
+  { required :: Boolean
+  , default :: Maybe String
+  , typ :: ArgType
+  }
+
+instance decodeJsonFlagArg :: DecodeJson FlagArg where
+  decodeJson json =
+    do
+       obj <- decodeJson json
        required <- obj .:? "required" .!= false
        default <- obj .:? "default" .!= Nothing
        typ <- obj .:? "type" .!= Str
-       pure (FlagDescription { shortName, longName,  description, multiple, hasArg, required , default, typ})
+       pure (FlagArg { required , default, typ})
 
 
 newtype Command = Command
@@ -216,7 +225,7 @@ runRun {configFile, srcFile} = do
   args <- liftEffect argv
   -- Strip off the redundant node args
   -- [node-exe, flags-exe, run, src-script]
-  let passthroughArgs = drop 4 args
+  let passthroughArgs = drop 4 <<< filter (_ /= "--") $ args
   void <<< liftEffect $ spawn "/bin/bash" (["-c", totalOutput, srcFile] <> fromFoldable passthroughArgs) (defaultSpawnOptions{stdio=proxyPipes})
 
 runInit :: Aff Unit
@@ -365,13 +374,11 @@ flagsToString :: Array FlagDescription -> String
 flagsToString flags =
   joinWith " " $ map renderFlag flags
   where
-    renderFlag (FlagDescription flag@({longName, shortName, hasArg})) =
-      wrapFlag flag $
-        "-" <> shortName <> "|" <> "--" <> longName <> if hasArg then "=<" <> longName <> ">" else ""
-    wrapFlag {hasArg, required} flag =
-      if (required && hasArg)
-        then flag
-        else wrapOptional flag
+    renderFlag (FlagDescription flag@({longName, shortName, arg})) =
+      wrapFlag arg $
+        "-" <> shortName <> "|" <> "--" <> longName <> if isJust arg then "=<" <> longName <> ">" else ""
+    wrapFlag (Just (FlagArg {required: true})) flag = flag
+    wrapFlag _ flag = wrapOptional flag
 
 renderCmd :: Command -> Bash Unit
 renderCmd cmd@(Command {name}) = do
@@ -395,10 +402,11 @@ renderCmdArgsAndFlagsParser cmd@(Command {flags}) = do
 
 setDefaultFlags :: Array FlagDescription -> Bash Unit
 setDefaultFlags flags = do
-  for_ flags $ \(FlagDescription {longName, default}) -> do
-     case default of
-          Nothing -> pure unit
-          Just def -> assign (flagToVar longName) def
+  for_ flags $ \(FlagDescription {longName, arg}) -> do
+     case arg of
+      Just (FlagArg {default: Just def}) ->
+          assign (flagToVar longName) def
+      _ -> pure unit
 
 captureArg :: Bash Unit
 captureArg = do
@@ -417,19 +425,18 @@ helpCase cmd = do
     line "exit 1"
 
 renderFlagCase :: FlagDescription -> Bash Unit
-renderFlagCase (FlagDescription {longName, shortName, hasArg, multiple, typ}) = do
+renderFlagCase (FlagDescription {longName, shortName, multiple, arg}) = do
   let flagVarName = flagToVar longName
   caseOption (joinWith "" ["--", longName, "|", "-", shortName ]) $ do
     shift
-    if hasArg
-      then do
-         validate flagVarName typ
-         if multiple
-          then append flagVarName(var "1")
-          else assign flagVarName (var "1")
-         shift
-      else do
-         assign flagVarName "true"
+    case arg of
+         Just (FlagArg {typ}) -> do
+          validate flagVarName typ
+          if multiple
+            then append flagVarName(var "1")
+            else assign flagVarName (var "1")
+          shift
+         Nothing -> assign flagVarName "true"
 
 flagToVar :: String -> String
 flagToVar = toLower >>> replace (Pattern "-") (Replacement "_")
