@@ -35,10 +35,10 @@ Some other bonuses:
 - [x] Default args
 - [x] Supports custom shebang: `#!/usr/local/bin/flags run`
 - [x] Init command
+- [x] Validate argument types (string, number, file, dir, path)
 
 Upcoming features:
 
-- [ ] Validate argument types (string, number, file, etc.)
 - [ ] Tab-complete
 
 How do we achieve all this ✨magic✨ you ask?
