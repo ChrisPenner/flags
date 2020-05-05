@@ -3,10 +3,12 @@ module Main where
 
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, if', indented, line, quoted, renderBash, scriptName, shift, subshell, var, while)
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
-import Data.Array (any, drop, filter, fromFoldable, null)
+import Data.Array (any, null)
+import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Foldable (for_)
-import Data.List (List)
+import Data.List (List, (:))
+import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe, optional)
 import Data.String (joinWith, Pattern(..), Replacement(..), toLower, replace)
 import Data.String.CodeUnits as String
@@ -23,14 +25,14 @@ import Node.FS.Aff (exists, readTextFile, writeTextFile)
 import Node.Path (FilePath, dirname, sep)
 import Node.Process (argv, exit)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
-import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (*>), (/=), (<$>), (<*>), (<<<), (<>), (==), (>>=), (>>>))
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=), (>>>))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
 
 data Choice =
-    Run {configFile :: Maybe String, srcFile :: String}
+    Run {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String}
   | Build {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String}
   | Init
 
@@ -39,7 +41,7 @@ runOptionsP =
   info p (fullDesc <> progDesc "Parse arguments and flags provided after -- and run the provided source file against them.")
     where
       p =
-        (\configFile srcFile _ -> Run {configFile, srcFile})
+        (\configFile srcFile passthroughArgs -> Run {configFile, srcFile, passthroughArgs})
           <$> optional configFileP
           <*> (srcFileP false)
           <*> argP
@@ -216,17 +218,14 @@ parseYamlConfig configFile = do
          Right (obj :: Commands) -> pure obj
 
 
-runRun :: {configFile :: Maybe String, srcFile :: String} -> Aff Unit
-runRun {configFile, srcFile} = do
+runRun :: {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
+runRun {configFile, srcFile, passthroughArgs} = do
   conf <- readConfigFile ({srcFilePath: Just srcFile, configFilePath: configFile})
   let bash = renderBash $ toBash conf
   src <- readTextFile UTF8 srcFile
   let totalOutput = (joinWith "\n" [src, bash])
   args <- liftEffect argv
-  -- Strip off the redundant node args
-  -- [node-exe, flags-exe, run, src-script]
-  let passthroughArgs = drop 4 <<< filter (_ /= "--") $ args
-  void <<< liftEffect $ spawn "/bin/bash" (["-c", totalOutput, srcFile] <> fromFoldable passthroughArgs) (defaultSpawnOptions{stdio=proxyPipes})
+  void <<< liftEffect $ spawn "/bin/bash" (["-c", totalOutput, srcFile] <> Array.fromFoldable passthroughArgs) (defaultSpawnOptions{stdio=proxyPipes})
 
 runInit :: Aff Unit
 runInit = do
@@ -288,12 +287,19 @@ fullP = info (p <**> helper) fullDesc
 
 main :: Effect Unit
 main = do
-  choice <- execParser fullP
-  launchAff_ do
-    case choice of
-         Build buildData -> runBuild buildData
-         Run runData -> runRun runData
-         Init -> runInit
+  args <- argv
+  case (List.fromFoldable args) of
+       -- Catch 'shebang' case and pass through all args
+       (_ : _ : "shebang" : srcFile : passthroughArgs) -> do
+          let configFilePath = dirname srcFile <> sep <> "flags.yaml"
+          launchAff_ $ runRun {configFile: Just configFilePath, srcFile, passthroughArgs}
+       _ -> do
+        choice <- execParser fullP
+        launchAff_ do
+          case choice of
+              Build buildData -> runBuild buildData
+              Run runData -> runRun runData
+              Init -> runInit
 
 toBash :: Commands -> Bash Unit
 toBash cmds = do

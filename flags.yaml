@@ -11,4 +11,6 @@
       description: "Reverse the TODO list"
     - longName: "query"
       description: "List only TODOs containing this text"
-      hasArg: true
+      arg:
+        type: string
+        required: false

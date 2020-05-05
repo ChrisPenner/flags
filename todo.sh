@@ -1,4 +1,4 @@
-#!/usr/local/bin/flags run
+#!/usr/local/bin/flags shebang
 
 LIST_LOCATION="$HOME/.todos"
 
