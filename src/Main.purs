@@ -313,7 +313,7 @@ initCommandsVars :: Commands -> Bash Unit
 initCommandsVars cmds = do
   for_ cmds $ \(Command {flags}) -> do
     for_ flags $ \(FlagDescription {longName}) -> do
-      line $ "local " <> flagToVar longName
+      line $ "local " <> varify longName
 
 defaultSubcommand :: Commands -> Bash Unit
 defaultSubcommand cmds = do
@@ -394,8 +394,9 @@ renderCmd cmd@(Command {name}) = do
      line (name <> " " <> quoted "${_args[@]}")
 
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
-renderCmdArgsAndFlagsParser cmd@(Command {flags}) = do
+renderCmdArgsAndFlagsParser cmd@(Command {flags, args}) = do
   setDefaultFlags flags
+  initializeArgs args
   while "[[ $# -gt 0 ]]" $ do
      if' ("[[ -n " <> var "_skip_flag" <> " ]]") (captureArg *> shift *> line "continue") Nothing
      case_ (var "1") $ do
@@ -411,8 +412,26 @@ setDefaultFlags flags = do
   for_ flags $ \(FlagDescription {longName, arg}) -> do
      case arg of
       Just (FlagArg {default: Just def}) ->
-          assign (flagToVar longName) def
+          assign (varify longName) def
       _ -> pure unit
+
+initializeArgs :: Array ArgDescription -> Bash Unit
+initializeArgs args = do
+  for_ args $ \(ArgDescription {name, multiple, default, required}) -> do
+    if multiple
+      then case default of
+                Nothing -> assign (varify name) "()"
+                Just def -> assign (varify name) ("( " <> def <> " )")
+      else case default of
+                Nothing -> pure unit
+                Just def -> assign (varify name) def
+  let argNames =
+        joinWith " " (map (\(ArgDescription {name}) -> varify name) args)
+  let multiples =
+        joinWith " " (map (\(ArgDescription {multiple}) -> show multiple) args)
+
+  assign "_argNames" ("( " <> argNames <> " )")
+  assign "_multiples" ("( " <> multiples <> " )")
 
 captureArg :: Bash Unit
 captureArg = do
@@ -432,7 +451,7 @@ helpCase cmd = do
 
 renderFlagCase :: FlagDescription -> Bash Unit
 renderFlagCase (FlagDescription {longName, shortName, multiple, arg}) = do
-  let flagVarName = flagToVar longName
+  let flagVarName = varify longName
   caseOption (joinWith "" ["--", longName, "|", "-", shortName ]) $ do
     shift
     case arg of
@@ -444,8 +463,8 @@ renderFlagCase (FlagDescription {longName, shortName, multiple, arg}) = do
           shift
          Nothing -> assign flagVarName "true"
 
-flagToVar :: String -> String
-flagToVar = toLower >>> replace (Pattern "-") (Replacement "_")
+varify :: String -> String
+varify = toLower >>> replace (Pattern "-") (Replacement "_")
 
 
 validate :: String -> ArgType -> Bash Unit
