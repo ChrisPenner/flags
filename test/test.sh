@@ -39,4 +39,44 @@ EOF
   assertEquals "$stderr" "$expected"
 }
 
+testTooManyArgs() {
+  stderr=$(./simple list arg 2>&1)
+
+read -rd '' expected <<-EOF
+Expected 0 arguments but got 1
+
+Usage:
+  ./simple <command>
+
+More info:
+  ./simple [command] --help
+
+Commands:
+  ./simple add todo...
+  ./simple list  [-r|--reverse] [-q|--query=<query>]
+EOF
+
+  assertEquals "$stderr" "$expected"
+}
+
+testTooFewArgs() {
+  stderr=$(./simple add 2>&1)
+
+read -rd '' expected <<-EOF
+Argument "todo" is required
+
+Usage:
+  ./simple <command>
+
+More info:
+  ./simple [command] --help
+
+Commands:
+  ./simple add todo...
+  ./simple list  [-r|--reverse] [-q|--query=<query>]
+EOF
+
+  assertEquals "$stderr" "$expected"
+}
+
 source ./shunit2
