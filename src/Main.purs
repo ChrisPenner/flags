@@ -10,6 +10,7 @@ import Data.Foldable (for_)
 import Data.List (List, (:))
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe, optional)
+import Data.Monoid (guard)
 import Data.String (joinWith, Pattern(..), Replacement(..), toLower, replace)
 import Data.String.CodeUnits as String
 import Data.Tuple (Tuple(..))
@@ -518,13 +519,11 @@ validateCommand (Command {args, flags}) = do
   let errs = case unsnoc args of
        Nothing -> []
        Just {init} -> do
-         (if (any (\(ArgDescription {multiple}) -> multiple) init)
-            then ["- Only the last argument of a command can accept multiple values"]
-            else []
+         (guard (any (\(ArgDescription {multiple}) -> multiple) init)
+            ["- Only the last argument of a command can accept multiple values"]
          <>
-          if (any (\(ArgDescription {required}) -> not required) init)
-            then ["  - Only the last argument of a command can be optional"]
-            else []
+          guard (any (\(ArgDescription {required}) -> not required) init)
+            ["  - Only the last argument of a command can be optional"]
          )
   when (length errs > 0) $ do
      Console.error "Error in command configuration:"
