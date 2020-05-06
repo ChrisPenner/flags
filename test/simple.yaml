@@ -1,0 +1,16 @@
+- name: add
+  description: "Add a todo to the list"
+  args:
+    - name: todo
+      description: "The todos you'd like to add"
+      multiple: true
+- name: "list"
+  description: "List out your existing TODOs"
+  flags:
+    - longName: "reverse"
+      description: "Reverse the TODO list"
+    - longName: "query"
+      description: "List only TODOs containing this text"
+      arg:
+        type: string
+        required: false

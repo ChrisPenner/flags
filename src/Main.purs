@@ -11,7 +11,7 @@ import Data.List (List, (:))
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe, optional)
 import Data.Monoid (guard)
-import Data.String (joinWith, Pattern(..), Replacement(..), toLower, replace)
+import Data.String (Pattern(..), Replacement(..), joinWith, replace, toLower, trim)
 import Data.String.CodeUnits as String
 import Data.Tuple (Tuple(..))
 import Data.Yaml (parseFromYaml)
@@ -338,7 +338,7 @@ renderTopLevelHelp cmds = func "_showHelp" $ do
 renderCmdSummary :: Command -> Bash Unit
 renderCmdSummary (Command {name, description, args, flags}) = do
   echoErrLn $ "  " <>
-    joinWith " " [scriptName, name, argsToString args, flagsToString flags]
+    trim (joinWith " " [scriptName, name, argsToString args, flagsToString flags])
 
 renderCmdHelp :: Command -> Bash Unit
 renderCmdHelp cmd@(Command {name, description, args, flags}) = do
@@ -346,10 +346,10 @@ renderCmdHelp cmd@(Command {name, description, args, flags}) = do
   renderCmdSummary cmd
   echoErrLn ""
   when (not (null args)) $ do
-    echoErrLn "Args: "
+    echoErrLn "Args:"
     for_ args renderArgHelp
   when (not (null flags)) $ do
-     echoErrLn "Flags: "
+     echoErrLn "Flags:"
      for_ flags renderFlagHelp
 
 renderArgHelp :: ArgDescription -> Bash Unit
@@ -362,7 +362,7 @@ renderFlagHelp (FlagDescription {shortName, longName, description}) = do
 
 argsToString :: Array ArgDescription -> String
 argsToString args =
-  joinWith " " $ map renderArg args
+  trim $ joinWith " " $ map renderArg args
   where
     renderArg (ArgDescription arg@({name, multiple})) =
       wrapArg arg $
