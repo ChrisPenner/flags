@@ -88,3 +88,12 @@ scriptName = var "0"
 
 inc :: String -> Bash Unit
 inc c = line $ c <> "=$((" <> c <> "+1))"
+
+func :: String -> Bash Unit -> Bash Unit
+func name body = do
+  line $ "function " <> name <> "(){"
+  indented 1 body
+  line $ "}"
+
+spacer :: Bash Unit
+spacer = line "echo"

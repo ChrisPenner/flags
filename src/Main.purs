@@ -1,9 +1,9 @@
 module Main where
 
 
-import Bash (Bash, append, assign, caseOption, case_, echoErrLn, if', indented, line, quoted, renderBash, scriptName, shift, subshell, var, while, inc)
+import Bash (Bash, append, assign, caseOption, case_, echoErrLn, func, if', inc, indented, line, renderBash, scriptName, shift, subshell, var, while, spacer)
 import Data.Argonaut (class DecodeJson, decodeJson, (.:), (.:?), (.!=))
-import Data.Array (any, null)
+import Data.Array (any, filter, length, null, unsnoc)
 import Data.Array as Array
 import Data.Either (Either(..))
 import Data.Foldable (for_)
@@ -25,7 +25,7 @@ import Node.FS.Aff (exists, readTextFile, writeTextFile)
 import Node.Path (FilePath, dirname, sep)
 import Node.Process (argv, exit)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
-import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=), (>>>))
+import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=), (>>>), (>))
 import Unsafe.Coerce (unsafeCoerce)
 
 readStdIn :: Aff String
@@ -123,7 +123,7 @@ instance decodeJsonArgDescription :: DecodeJson ArgDescription where
        name <- obj .: "name"
        description <- obj .:? "description" .!= ""
        multiple <- obj .:? "multiple" .!= false
-       required <- obj .:? "required" .!= false
+       required <- obj .:? "required" .!= true
        default <- obj .:? "default" .!= Nothing
        typ <- obj .:? "type" .!= Str
        pure (ArgDescription { name, description, multiple, required, default, typ })
@@ -188,8 +188,10 @@ instance decodeJsonCommand :: DecodeJson Command where
 type Commands = Array Command
 
 readConfigFile :: {srcFilePath :: Maybe FilePath, configFilePath :: Maybe FilePath} ->  Aff Commands
-readConfigFile {srcFilePath, configFilePath} =
-  parseYamlConfig actualConfigPath
+readConfigFile {srcFilePath, configFilePath} = do
+  cmds <- parseYamlConfig actualConfigPath
+  liftEffect $ validateCommands cmds
+  pure cmds
   where
     actualConfigPath = fromMaybe defaultConfigPath configFilePath
     defaultConfigPath = maybe "." dirname srcFilePath <> sep <> "flags.yaml"
@@ -304,33 +306,33 @@ main = do
 toBash :: Commands -> Bash Unit
 toBash cmds = do
   subshell $ do
-    line "_args=()"
+    renderTopLevelHelp cmds
     case_ (var "1") $ do
       for_ cmds renderCmd
       defaultSubcommand cmds
 
-initCommandsVars :: Commands -> Bash Unit
-initCommandsVars cmds = do
-  for_ cmds $ \(Command {flags}) -> do
-    for_ flags $ \(FlagDescription {longName}) -> do
-      line $ "local " <> varify longName
+{-- initCommandsVars :: Commands -> Bash Unit --}
+{-- initCommandsVars cmds = do --}
+{--   for_ cmds $ \(Command {flags}) -> do --}
+{--     for_ flags $ \(FlagDescription {longName}) -> do --}
+{--       line $ "local " <> varify longName --}
 
 defaultSubcommand :: Commands -> Bash Unit
 defaultSubcommand cmds = do
   caseOption "*" $ do
     shift
-    renderTopLevelHelp cmds
+    line "_showHelp"
 
 renderTopLevelHelp :: Commands -> Bash Unit
-renderTopLevelHelp cmds = do
-  echoErrLn "Usage:"
-  echoErrLn $ "  " <> scriptName <> " <command>"
-  echoErrLn ""
-  echoErrLn "More info:"
-  echoErrLn $ "  " <> scriptName <> " [command] --help"
-  echoErrLn ""
-  echoErrLn $ "Commands:"
-  for_ cmds renderCmdSummary
+renderTopLevelHelp cmds = func "_showHelp" $ do
+    echoErrLn "Usage:"
+    echoErrLn $ "  " <> scriptName <> " <command>"
+    echoErrLn ""
+    echoErrLn "More info:"
+    echoErrLn $ "  " <> scriptName <> " [command] --help"
+    echoErrLn ""
+    echoErrLn $ "Commands:"
+    for_ cmds renderCmdSummary
 
 renderCmdSummary :: Command -> Bash Unit
 renderCmdSummary (Command {name, description, args, flags}) = do
@@ -391,7 +393,14 @@ renderCmd cmd@(Command {name}) = do
   caseOption name $ do
      shift
      renderCmdArgsAndFlagsParser cmd
-     line (name <> " " <> quoted "${_args[@]}")
+     if' "[[ $_i -lt $_numRequiredArgs ]]" missingArgError Nothing
+     line name
+  where
+    missingArgError = do
+       echoErrLn $ "Argument \\\"${_argNames[$_i]}\\\" is required"
+       spacer
+       line "_showHelp"
+       line "exit 1"
 
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
 renderCmdArgsAndFlagsParser cmd@(Command {flags, args}) = do
@@ -429,13 +438,14 @@ initializeArgs args = do
         joinWith " " (map (\(ArgDescription {name}) -> varify name) args)
   let multiples =
         joinWith " " (map (\(ArgDescription {multiple}) -> show multiple) args)
-
   assign "_argNames" ("( " <> argNames <> " )")
   assign "_multiples" ("( " <> multiples <> " )")
   assign "_i" "0"
+  assign "_numRequiredArgs" (show <<< length <<< filter (\(ArgDescription {required}) -> required) $ args)
 
 captureArg :: Bash Unit
 captureArg = do
+  if' "[[ -z ${_multiples[$_i]} ]]" tooManyArgsErr Nothing
   if' "${_multiples[$_i]}" appendArg (Just assignArg)
     where
       assignArg = indented 1 $ do
@@ -443,7 +453,12 @@ captureArg = do
          inc "_i"
       appendArg = indented 1 $ do
         line $ "eval \"${_argNames[$_i]}+=($1)\""
-        {-- line $ "declare \"${_argNames[$_i]}\"+=" <> var "1" --}
+      tooManyArgsErr = do
+        echoErrLn "Expected $_numRequiredArgs arguments but got $(($_i + $#))"
+        spacer
+        line "_showHelp"
+        line "exit 1"
+
 
 skipFlagCase :: Bash Unit
 skipFlagCase = do
@@ -489,4 +504,29 @@ validate varName typ =
        indented 1 $ do
          echoErrLn $ "Problem with flag: " <> varName
          echoErrLn $ msg
+         spacer
+         line "_showHelp"
          line "exit 1"
+
+
+validateCommands :: Commands -> Effect Unit
+validateCommands cmds = do
+  for_ cmds validateCommand
+
+validateCommand :: Command -> Effect Unit
+validateCommand (Command {args, flags}) = do
+  let errs = case unsnoc args of
+       Nothing -> []
+       Just {init} -> do
+         (if (any (\(ArgDescription {multiple}) -> multiple) init)
+            then ["- Only the last argument of a command can accept multiple values"]
+            else []
+         <>
+          if (any (\(ArgDescription {required}) -> not required) init)
+            then ["  - Only the last argument of a command can be optional"]
+            else []
+         )
+  when (length errs > 0) $ do
+     Console.error "Error in command configuration:"
+     for_ errs Console.error
+     exit 1

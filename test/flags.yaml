@@ -24,4 +24,4 @@
     - name: second
       multiple: false
     - name: multiple
-      multiple: true
+      required: true
