@@ -20,15 +20,15 @@ Commands:
   ./simple add
         todo...
   ./simple list
-        [-r|--reverse]
-        [-q|--query=<query>]
+        [--reverse]
+        [--query=<query>]
   ./simple show
         [arg]
   ./simple show-flag
-        [-f|--flag=<flag>]
+        [--flag=<flag>]
   ./simple multiple
         arg...
-        -f|--flag=<flag>
+        --flag=<flag>
 EOF
 
   assertEquals "$expected" "$stderr"
@@ -40,8 +40,8 @@ testListHelp() {
 read -rd '' expected <<-EOF
 Usage:
   ./simple list
-        [-r|--reverse]
-        [-q|--query=<query>]
+        [--reverse]
+        [--query=<query>]
 
 Flags:
   -r, --reverse: Reverse the TODO list
@@ -110,7 +110,7 @@ read -rd '' msg <<-EOF
 Usage:
   ./single
       arg
-      [-f|--flag]
+      [--flag]
 
 Args:
   arg: An arg

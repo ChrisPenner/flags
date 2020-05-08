@@ -397,9 +397,9 @@ isRequired validators =
 describeFlags :: Array FlagDescription -> Array String
 describeFlags flags = map renderFlag flags
   where
-    renderFlag (FlagDescription flag@({name, shortName, arg})) =
+    renderFlag (FlagDescription flag@({name, arg})) =
       wrapFlag arg $
-        "-" <> shortName <> "|" <> "--" <> name <> if isJust arg then "=<" <> name <> ">" else ""
+        "--" <> name <> if isJust arg then "=<" <> name <> ">" else ""
     wrapFlag (Just (FlagArg {required: true})) flag = flag
     wrapFlag _ flag = wrapOptional flag
 
