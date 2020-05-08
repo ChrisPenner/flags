@@ -46,7 +46,7 @@ testTooManyArgs() {
   stderr=$(./simple list arg 2>&1)
 
 read -rd '' msg <<-EOF
-Expected 0 arguments but got 1
+Expected 0 positional arguments but got 1
 EOF
 
   assertContains "$stderr" "$msg" 
@@ -56,7 +56,7 @@ testTooFewArgs() {
   stderr=$(./simple add 2>&1)
 
 read -rd '' msg <<-EOF
-Argument "todo" is required
+Positional argument "todo" is required
 EOF
 
   assertContains "$stderr" "$msg" 

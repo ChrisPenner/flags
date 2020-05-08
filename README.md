@@ -36,11 +36,11 @@ Some other bonuses:
 - [x] Supports custom shebang: `#!/usr/local/bin/flags run`
 - [x] Init command
 - [x] Validate argument types (string, number, file, dir, path)
+- [x] Single top-level command
 
 Upcoming features:
 
 - [ ] Tab-complete
-- [ ] Single top-level command
 
 How do we achieve all this ✨magic✨ you ask?
 

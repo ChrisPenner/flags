@@ -407,7 +407,7 @@ renderCmd cmd@(Command {name}) = do
      line (varify name)
   where
     missingArgError = do
-       echoErrLn $ "Argument \\\"${_argNames[$_i]}\\\" is required"
+       echoErrLn $ "Positional argument \\\"${_argNames[$_i]}\\\" is required"
        spacer
        line $ buildCmdHelpFuncName name
        line "exit 1"
@@ -464,7 +464,7 @@ captureArg = do
       appendArg = indented 1 $ do
         line $ "eval \"${_argNames[$_i]}+=($1)\""
       tooManyArgsErr = do
-        echoErrLn "Expected $_numRequiredArgs arguments but got $(($_i + $#))"
+        echoErrLn "Expected $_numRequiredArgs positional arguments but got $(($_i + $#))"
         spacer
         line "_showHelp"
         line "exit 1"
