@@ -1,0 +1,8 @@
+name: single
+description: "A single command"
+args:
+  - name: arg
+    description: "An arg"
+flags:
+  - name: "flag"
+    description: "A flag"

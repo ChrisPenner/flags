@@ -1,6 +1,6 @@
 #!/bin/bash
 
-testFiles=( simple )
+testFiles=( simple single )
 for src in "${testFiles[@]}" ; do
     flags build "$src.sh" -f "$src.yaml" -o "$src"
     chmod +x "$src"
@@ -19,9 +19,12 @@ More info:
 Commands:
   ./simple add todo...
   ./simple list  [-r|--reverse] [-q|--query=<query>]
+  ./simple show [arg]
+  ./simple show-flag  [-f|--flag=<flag>]
+  ./simple multiple arg... -f|--flag=<flag>
 EOF
 
-  assertEquals "$stderr" "$expected"
+  assertEquals "$expected" "$stderr"
 }
 
 testListHelp() {
@@ -36,47 +39,72 @@ Flags:
   -q, --query: List only TODOs containing this text
 EOF
 
-  assertEquals "$stderr" "$expected"
+  assertEquals "$expected" "$stderr" 
 }
 
 testTooManyArgs() {
   stderr=$(./simple list arg 2>&1)
 
-read -rd '' expected <<-EOF
+read -rd '' msg <<-EOF
 Expected 0 arguments but got 1
-
-Usage:
-  ./simple <command>
-
-More info:
-  ./simple [command] --help
-
-Commands:
-  ./simple add todo...
-  ./simple list  [-r|--reverse] [-q|--query=<query>]
 EOF
 
-  assertEquals "$stderr" "$expected"
+  assertContains "$stderr" "$msg" 
 }
 
 testTooFewArgs() {
   stderr=$(./simple add 2>&1)
 
-read -rd '' expected <<-EOF
+read -rd '' msg <<-EOF
 Argument "todo" is required
-
-Usage:
-  ./simple <command>
-
-More info:
-  ./simple [command] --help
-
-Commands:
-  ./simple add todo...
-  ./simple list  [-r|--reverse] [-q|--query=<query>]
 EOF
 
-  assertEquals "$stderr" "$expected"
+  assertContains "$stderr" "$msg" 
 }
+
+testPassthroughArgs() {
+  stdout=$(./simple show -- --pass)
+
+  expected="--pass"
+
+  assertEquals "$expected" "$stdout" 
+}
+
+testDefaultArgs() {
+  stdout=$(./simple show)
+  expected="default-arg"
+  assertEquals "$expected" "$stdout" 
+}
+
+testDefaultFlags() {
+  stdout=$(./simple show-flag)
+  expected="default-flag"
+  assertEquals "$expected" "$stdout" 
+}
+
+testShortFlag() {
+  stdout=$(./simple show-flag -f val)
+  expected="val"
+  assertEquals "$expected" "$stdout" 
+}
+
+testLongFlag() {
+  stdout=$(./simple show-flag --flag val)
+  expected="val"
+  assertEquals "$expected" "$stdout" 
+}
+
+testSingleHelp() {
+  stdout=$(./single -h)
+  expected="val"
+  assertEquals "$expected" "$stdout" 
+}
+
+
+
+
+
+
+
 
 source ./shunit2

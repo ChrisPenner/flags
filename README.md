@@ -40,6 +40,7 @@ Some other bonuses:
 Upcoming features:
 
 - [ ] Tab-complete
+- [ ] Single top-level command
 
 How do we achieve all this ✨magic✨ you ask?
 
@@ -145,9 +146,9 @@ And we've got a config file at `flags.yaml` which looks like this:
 - name: "list"
   description: "List out your existing TODOs"
   flags:
-    - longName: "reverse"
+    - name: "reverse"
       description: "Reverse the TODO list"
-    - longName: "query"
+    - name: "query"
       description: "List only TODOs containing this text"
       hasArg: true
 ```
@@ -228,9 +229,9 @@ Where `/usr/local/bin/flags` is replaced by the result of running `which flags` 
   flags:
       # (default: first char of long-name)
     - shortName: "r"
-      # (required) Both the longname of the flag, and the name of the environment variable which it will be bound to.
+      # (required) Both the name of the flag, and the name of the environment variable which it will be bound to.
       # dashes will be replaced with underscores in variable names
-      longName: "reverse"
+      name: "reverse"
       # This description is printed in the help message
       description: "Reverse the TODO list"
       # (default: false) Whether the flag can be provided multiple times
@@ -239,9 +240,9 @@ Where `/usr/local/bin/flags` is replaced by the result of running `which flags` 
       # Variables for flags without arguments will be unset by default
       # and "true" if the arg is provided.
       hasArg: false
-    - # (required) Both the longname of the flag, and the name of the environment variable which it will be bound to.
+    - # (required) Both the name of the flag, and the name of the environment variable which it will be bound to.
       # dashes will be replaced with underscores in variable names
-      longName: "query"
+      name: "query"
       # This description is printed in the help message
       description: "List only TODOs containing this text"
       # (default: false) Whether the flag takes an argument
