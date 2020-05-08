@@ -349,11 +349,9 @@ derive instance eqNameVisibility :: Eq NameVisibility
 
 renderCmdSummary :: NameVisibility -> Command -> Bash Unit
 renderCmdSummary visibility (Command {name, description, args, flags}) = do
-  let pieces = [scriptName]
-            <> guard (visibility == ShowName) [name]
-            <> [argsToString args, flagsToString flags]
-  echoErrLn $ "  " <>
-    trim (joinWith " " pieces)
+  let cmdPrefix = scriptName <> guard (visibility == ShowName) (" " <> name)
+  let descriptors = joinWith "\n" $ map ("    " <> _) (describeArgs args <> describeFlags flags)
+  echoErrLn $ "  " <> trim (cmdPrefix <> "\n" <> descriptors)
 
 buildCmdHelpFuncName :: String -> String
 buildCmdHelpFuncName name = "_showHelp" <> varify name
@@ -378,9 +376,8 @@ renderFlagHelp :: FlagDescription -> Bash Unit
 renderFlagHelp (FlagDescription {shortName, name, description}) = do
   echoErrLn $ "  -" <> shortName <> ", --" <> name <> ": " <> description
 
-argsToString :: Array ArgDescription -> String
-argsToString args =
-  trim $ joinWith " " $ map renderArg args
+describeArgs :: Array ArgDescription -> Array String
+describeArgs args = map renderArg args
   where
     renderArg (ArgDescription arg@({name, multiple})) =
       wrapArg arg $
@@ -397,9 +394,8 @@ isRequired :: Array String -> Boolean
 isRequired validators =
   any (_ == "required") validators
 
-flagsToString :: Array FlagDescription -> String
-flagsToString flags =
-  joinWith " " $ map renderFlag flags
+describeFlags :: Array FlagDescription -> Array String
+describeFlags flags = map renderFlag flags
   where
     renderFlag (FlagDescription flag@({name, shortName, arg})) =
       wrapFlag arg $

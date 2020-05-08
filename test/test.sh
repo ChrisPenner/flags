@@ -17,11 +17,18 @@ More info:
   ./simple [command] --help
 
 Commands:
-  ./simple add todo...
-  ./simple list  [-r|--reverse] [-q|--query=<query>]
-  ./simple show [arg]
-  ./simple show-flag  [-f|--flag=<flag>]
-  ./simple multiple arg... -f|--flag=<flag>
+  ./simple add
+        todo...
+  ./simple list
+        [-r|--reverse]
+        [-q|--query=<query>]
+  ./simple show
+        [arg]
+  ./simple show-flag
+        [-f|--flag=<flag>]
+  ./simple multiple
+        arg...
+        -f|--flag=<flag>
 EOF
 
   assertEquals "$expected" "$stderr"
@@ -32,7 +39,9 @@ testListHelp() {
 
 read -rd '' expected <<-EOF
 Usage:
-  ./simple list  [-r|--reverse] [-q|--query=<query>]
+  ./simple list
+        [-r|--reverse]
+        [-q|--query=<query>]
 
 Flags:
   -r, --reverse: Reverse the TODO list
@@ -99,7 +108,9 @@ testSingleHelp() {
 
 read -rd '' msg <<-EOF
 Usage:
-  ./single arg [-f|--flag]
+  ./single
+      arg
+      [-f|--flag]
 
 Args:
   arg: An arg
