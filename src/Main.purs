@@ -2,10 +2,12 @@ module Main where
 
 
 import Bash (Bash, append, assign, caseOption, case_, echoErrLn, func, if', inc, indented, line, renderBash, scriptName, shift, subshell, var, while, spacer)
+import Control.Alt ((<|>))
 import Data.Argonaut (class DecodeJson, decodeJson, (.!=), (.:), (.:?))
 import Data.Array (any, filter, length, null, unsnoc)
 import Data.Array as Array
 import Data.Either (Either(..))
+import Data.Eq (class Eq)
 import Data.Foldable (for_)
 import Data.List (List, (:))
 import Data.List as List
@@ -28,7 +30,6 @@ import Node.Process (argv, exit)
 import Options.Applicative (Parser, ParserInfo, argument, command, execParser, fullDesc, help, helper, hsubparser, info, long, many, metavar, progDesc, short, str, strArgument, strOption, (<**>))
 import Prelude (Unit, bind, discard, map, not, pure, show, unit, void, when, ($), (*>), (<$>), (<*>), (<<<), (<>), (==), (>>=), (>>>), (>))
 import Unsafe.Coerce (unsafeCoerce)
-import Control.Alt ((<|>))
 
 readStdIn :: Aff String
 readStdIn = readTextFile UTF8 (unsafeCoerce 0 :: String)
@@ -316,12 +317,12 @@ main = do
 
 toBash :: CmdOrCmds -> Bash Unit
 toBash (Cmd cmd) = do
-  renderCmdHelp cmd
+  renderCmdHelp HideName cmd
   renderCmd cmd
 toBash (Cmds cmds) = do
   subshell $ do
     renderTopLevelHelp cmds
-    for_ cmds renderCmdHelp
+    for_ cmds (renderCmdHelp ShowName)
     case_ (var "1") $ do
       for_ cmds (\cmd@(Command {name}) -> caseOption name (shift *> renderCmd cmd))
       defaultSubcommand cmds
@@ -341,20 +342,26 @@ renderTopLevelHelp cmds = func "_showHelp" $ do
     echoErrLn $ "  " <> scriptName <> " [command] --help"
     echoErrLn ""
     echoErrLn $ "Commands:"
-    for_ cmds renderCmdSummary
+    for_ cmds (renderCmdSummary ShowName)
 
-renderCmdSummary :: Command -> Bash Unit
-renderCmdSummary (Command {name, description, args, flags}) = do
+data NameVisibility = ShowName | HideName
+derive instance eqNameVisibility :: Eq NameVisibility
+
+renderCmdSummary :: NameVisibility -> Command -> Bash Unit
+renderCmdSummary visibility (Command {name, description, args, flags}) = do
+  let pieces = [scriptName]
+            <> guard (visibility == ShowName) [name]
+            <> [argsToString args, flagsToString flags]
   echoErrLn $ "  " <>
-    trim (joinWith " " [scriptName, name, argsToString args, flagsToString flags])
+    trim (joinWith " " pieces)
 
 buildCmdHelpFuncName :: String -> String
 buildCmdHelpFuncName name = "_showHelp" <> varify name
 
-renderCmdHelp :: Command -> Bash Unit
-renderCmdHelp cmd@(Command {name, description, args, flags}) = func (buildCmdHelpFuncName name) $ do
+renderCmdHelp :: NameVisibility -> Command -> Bash Unit
+renderCmdHelp nameVisibility cmd@(Command {name, description, args, flags}) = func (buildCmdHelpFuncName name) $ do
   echoErrLn "Usage:"
-  renderCmdSummary cmd
+  renderCmdSummary nameVisibility cmd
   echoErrLn ""
   when (not (null args)) $ do
     echoErrLn "Args:"

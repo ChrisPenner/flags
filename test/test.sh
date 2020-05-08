@@ -99,7 +99,7 @@ testSingleHelp() {
 
 read -rd '' msg <<-EOF
 Usage:
-  ./single single arg [-f|--flag]
+  ./single arg [-f|--flag]
 
 Args:
   arg: An arg
