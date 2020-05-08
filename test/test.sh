@@ -95,9 +95,19 @@ testLongFlag() {
 }
 
 testSingleHelp() {
-  stdout=$(./single -h)
-  expected="val"
-  assertEquals "$expected" "$stdout" 
+  stderr=$(./single -h  2>&1)
+
+read -rd '' msg <<-EOF
+Usage:
+  ./single single arg [-f|--flag]
+
+Args:
+  arg: An arg
+Flags:
+  -f, --flag: A flag
+EOF
+
+  assertEquals "$msg" "$stderr" 
 }
 
 

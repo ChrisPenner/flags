@@ -316,10 +316,12 @@ main = do
 
 toBash :: CmdOrCmds -> Bash Unit
 toBash (Cmd cmd) = do
+  renderCmdHelp cmd
   renderCmd cmd
 toBash (Cmds cmds) = do
   subshell $ do
     renderTopLevelHelp cmds
+    for_ cmds renderCmdHelp
     case_ (var "1") $ do
       for_ cmds (\cmd@(Command {name}) -> caseOption name (shift *> renderCmd cmd))
       defaultSubcommand cmds
@@ -346,8 +348,11 @@ renderCmdSummary (Command {name, description, args, flags}) = do
   echoErrLn $ "  " <>
     trim (joinWith " " [scriptName, name, argsToString args, flagsToString flags])
 
+buildCmdHelpFuncName :: String -> String
+buildCmdHelpFuncName name = "_showHelp" <> varify name
+
 renderCmdHelp :: Command -> Bash Unit
-renderCmdHelp cmd@(Command {name, description, args, flags}) = do
+renderCmdHelp cmd@(Command {name, description, args, flags}) = func (buildCmdHelpFuncName name) $ do
   echoErrLn "Usage:"
   renderCmdSummary cmd
   echoErrLn ""
@@ -404,7 +409,7 @@ renderCmd cmd@(Command {name}) = do
     missingArgError = do
        echoErrLn $ "Argument \\\"${_argNames[$_i]}\\\" is required"
        spacer
-       line "_showHelp"
+       line $ buildCmdHelpFuncName name
        line "exit 1"
 
 renderCmdArgsAndFlagsParser :: Command -> Bash Unit
@@ -472,9 +477,9 @@ skipFlagCase = do
     line "_skip_flag=true"
 
 helpCase :: Command -> Bash Unit
-helpCase cmd = do
+helpCase (Command {name}) = do
   caseOption "-h|--help" $ do
-    renderCmdHelp cmd
+    line $ buildCmdHelpFuncName name
     line "exit 1"
 
 renderFlagCase :: FlagDescription -> Bash Unit

@@ -7,9 +7,9 @@
 - name: "list"
   description: "List out your existing TODOs"
   flags:
-    - longName: "reverse"
+    - name: "reverse"
       description: "Reverse the TODO list"
-    - longName: "query"
+    - name: "query"
       description: "List only TODOs containing this text"
       arg:
         type: string
