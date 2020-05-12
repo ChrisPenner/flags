@@ -166,7 +166,7 @@ instance decodeJsonFlagArg :: DecodeJson FlagArg where
     do
        obj <- decodeJson json
        default <- obj .:? "default" .!= Nothing
-       required <- obj .:? "required" .!= isNothing default
+       required <- obj .:? "required" .!= false
        typ <- obj .:? "type" .!= Str
        pure (FlagArg { required , default, typ})
 
@@ -239,7 +239,7 @@ runRun {configFile, srcFile, passthroughArgs} = do
   src <- readTextFile UTF8 srcFile
   let totalOutput = (joinWith "\n" [src, bash])
   args <- liftEffect argv
-  void <<< liftEffect $ spawn "/bin/bash" (["-c", totalOutput, srcFile] <> Array.fromFoldable passthroughArgs) (defaultSpawnOptions{stdio=proxyPipes})
+  void <<< liftEffect $ spawn "bash" (["-c", totalOutput, srcFile] <> Array.fromFoldable passthroughArgs) (defaultSpawnOptions{stdio=proxyPipes})
 
 runInit :: Aff Unit
 runInit = do
@@ -263,8 +263,8 @@ initYaml = """# List of subcommands
       description: "A positional argument"
       # (default: false) Whether multiple values can be provided for this argument
       multiple: false
-      # (default: false) Whether the argument is required or optional
-      required: false
+      # (default: true) Whether the argument is required or optional
+      required: true
       # (default: null) A default value for optional arguments
       default: null
   flags:
@@ -277,10 +277,15 @@ initYaml = """# List of subcommands
       description: "A flag option"
       # (default: false) Whether the flag can be provided multiple times
       multiple: false
-      # (default: false) Whether the flag takes an argument
-      # Variables for flags without arguments will be unset by default
-      # and "true" if the arg is provided.
-      hasArg: false
+      # (default: null) The configuration for the flag's argument if it taks one
+      arg: 
+        # (default: null) A default value for optional arguments
+        default: null
+        # (default: false) Whether the argument is required or optional
+        required: false
+        # (default: string) The type of validations to run on the argument.
+        # Options include: [string, number, file, dir, path]
+        type: string
 """
 
 proxyPipes :: Array (Maybe StdIOBehaviour)
@@ -466,6 +471,7 @@ captureArg = do
          inc "_i"
       appendArg = indented 1 $ do
         line $ "eval \"${_argNames[$_i]}+=($1)\""
+        inc "_i"
       tooManyArgsErr = do
         echoErrLn "Expected $_numRequiredArgs positional arguments but got $(($_i + $#))"
         spacer

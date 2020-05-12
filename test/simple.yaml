@@ -31,3 +31,8 @@
     - name: flag
       multiple: true
       arg: {}
+- name: required-flag
+  flags:
+    - name: flag
+      arg:
+        required: true

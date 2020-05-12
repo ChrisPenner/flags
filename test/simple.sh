@@ -26,3 +26,7 @@ multiple() {
             echo $x
     done
 }
+
+required_flag() {
+    echo 'hi'
+}

@@ -71,6 +71,16 @@ EOF
   assertContains "$stderr" "$msg" 
 }
 
+testRequiredFlag() {
+  stderr=$(./simple required-flag 2>&1)
+
+read -rd '' msg <<-EOF
+Flag "flag" is required
+EOF
+
+  assertContains "$stderr" "$msg" 
+}
+
 testPassthroughArgs() {
   stdout=$(./simple show -- --pass)
 

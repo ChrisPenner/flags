@@ -150,7 +150,8 @@ And we've got a config file at `flags.yaml` which looks like this:
       description: "Reverse the TODO list"
     - name: "query"
       description: "List only TODOs containing this text"
-      hasArg: true
+      arg:
+        type: string
 ```
 
 That's it!
@@ -205,52 +206,39 @@ Where `/usr/local/bin/flags` is replaced by the result of running `which flags` 
 ## Config
 
 ```yaml
-# The name of the subcommand
-- name: add
+# List of subcommands
+- name: command-name
   # This description is printed in the help message
-  description: "Add a todo to the list"
+  description: "This is a command"
   # Argument configuration
   args:
-      # The name of the argument 
-    - name: todo
+      # The name of a positional argument
+    - name: positional-argument
       # This description is printed in the help message
-      description: "The todos you'd like to add"
+      description: "A positional argument"
       # (default: false) Whether multiple values can be provided for this argument
       multiple: false
-      # (default: false) Whether the argument is required or optional
-      required: false
+      # (default: true) Whether the argument is required or optional
+      required: true
       # (default: null) A default value for optional arguments
       default: null
-# The name of the subcommand
-- name: "list"
-  # This description is printed in the help message
-  description: "List out your existing TODOs"
-  # Flags configuration
   flags:
       # (default: first char of long-name)
-    - shortName: "r"
+    - shortName: "f"
       # (required) Both the name of the flag, and the name of the environment variable which it will be bound to.
       # dashes will be replaced with underscores in variable names
-      name: "reverse"
+      name: "flag"
       # This description is printed in the help message
-      description: "Reverse the TODO list"
+      description: "A flag option"
       # (default: false) Whether the flag can be provided multiple times
       multiple: false
-      # (default: false) Whether the flag takes an argument
-      # Variables for flags without arguments will be unset by default
-      # and "true" if the arg is provided.
-      hasArg: false
-    - # (required) Both the name of the flag, and the name of the environment variable which it will be bound to.
-      # dashes will be replaced with underscores in variable names
-      name: "query"
-      # This description is printed in the help message
-      description: "List only TODOs containing this text"
-      # (default: false) Whether the flag takes an argument
-      # Variables for flags without arguments will be unset by default
-      # and "true" if the arg is provided.
-      hasArg: true
-      # Whether the flag is required. Only applies to flags with arguments
-      required: false
-      # Default value. Only applies to flags with arguments.
-      default: null
+      # (default: null) The configuration for the flag's argument if it taks one
+      arg: 
+        # (default: null) A default value for optional arguments
+        default: null
+        # (default: false) Whether the argument is required or optional
+        required: false
+        # (default: string) The type of validations to run on the argument.
+        # Options include: [string, number, file, dir, path]
+        type: string
 ```
