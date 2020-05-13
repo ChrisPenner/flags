@@ -8,8 +8,11 @@
 * [Usage](#usage)
   * [Flags Build](#flags-build)
   * [Flags Run](#flags-run)
-  * [Flags Run](#flags-run-1)
+  * [Flags Init](#flags-init)
+  * [Flags Shebang](#flags-shebang)
 * [Config](#config)
+  * [A Single Command](#a-single-command)
+  * [Multiple Subcommands](#multiple-subcommands)
 
 <!-- tocstop -->
 
@@ -33,7 +36,7 @@ Some other bonuses:
 - [x] Required vs optional arguments
 - [x] Npm install
 - [x] Default args
-- [x] Supports custom shebang: `#!/usr/local/bin/flags run`
+- [x] Supports custom shebang: `#!/usr/local/bin/flags shebang`
 - [x] Init command
 - [x] Validate argument types (string, number, file, dir, path)
 - [x] Single top-level command
@@ -99,7 +102,7 @@ We've also got some flag option for `list`. One called `query` which takes an ar
 Here's the whole source:
 
 ```bash
-#!/usr/local/bin/flags run
+#!/usr/local/bin/flags shebang
 
 LIST_LOCATION="$HOME/.todos"
 
@@ -152,13 +155,14 @@ And we've got a config file at `flags.yaml` which looks like this:
       description: "List only TODOs containing this text"
       arg:
         type: string
+        required: false
 ```
 
 That's it!
 
 ## Usage
 
-There are three main commands in `flags`: `run`, `build`, `init`
+There are a few main commands in `flags`: `run`, `build`, `init`, and `shebang`
 
 ### Flags Build
 
@@ -189,56 +193,105 @@ flags run todo.sh -- list -r
      1 Finish writing the README
 ```
 
-You can also embed `flags run` into your script as a *shebang* by add this as your script's first line:
+`flags run` looks for a flags.yaml config in the same directory as the script, but you can specify a config with `-f` if needed.
+
+### Flags Init
+
+`flags init` will create a helpful sample `flags.yaml` in the current directory.
+
+### Flags Shebang
+
+You can embed `flags shebang` into your script as a *shebang* by add this as your script's first line:
 
 ```bash
-#!/usr/local/bin/flags run
+#!/usr/local/bin/flags shebang
 ```
 
 Where `/usr/local/bin/flags` is replaced by the result of running `which flags` on your system.
 
-`flags run` looks for a flags.yaml config in the same directory as the script, but you can specify a config with `-f` if needed. Note that due to limitations of using a *shebang* unfortunately you can't specify any configuration options when using the *shebang* style.
-
-### Flags Run
-
-`flags init` will create a helpful sample `flags.yaml` in the current directory.
+Note that due to limitations of using a *shebang* unfortunately you can't specify any configuration options when using the *shebang* style.
 
 ## Config
 
+### A Single Command
+
+You can configure your script using `flags.yaml`. 
+
 ```yaml
-# List of subcommands
-- name: command-name
-  # This description is printed in the help message
-  description: "This is a command"
-  # Argument configuration
-  args:
-      # The name of a positional argument
-    - name: positional-argument
-      # This description is printed in the help message
-      description: "A positional argument"
-      # (default: false) Whether multiple values can be provided for this argument
-      multiple: false
-      # (default: true) Whether the argument is required or optional
-      required: true
+name: command-name
+# This description is printed in the help message
+description: "This is a command"
+# Argument configuration
+args:
+    # The name of a positional argument
+  - name: positional-argument
+    # This description is printed in the help message
+    description: "A positional argument"
+    # (default: false) Whether multiple values can be provided for this argument
+    multiple: false
+    # (default: true) Whether the argument is required or optional
+    required: true
+    # (default: null) A default value for optional arguments
+    default: null
+flags:
+    # (default: first char of long-name)
+  - shortName: "f"
+    # (required) Both the name of the flag, and the name of the environment variable which it will be bound to.
+    # dashes will be replaced with underscores in variable names
+    name: "flag"
+    # This description is printed in the help message
+    description: "A flag option"
+    # (default: false) Whether the flag can be provided multiple times
+    multiple: false
+    # (default: null) The configuration for the flag's argument if it taks one
+    arg: 
       # (default: null) A default value for optional arguments
       default: null
-  flags:
-      # (default: first char of long-name)
-    - shortName: "f"
-      # (required) Both the name of the flag, and the name of the environment variable which it will be bound to.
-      # dashes will be replaced with underscores in variable names
-      name: "flag"
-      # This description is printed in the help message
-      description: "A flag option"
-      # (default: false) Whether the flag can be provided multiple times
+      # (default: false) Whether the argument is required or optional
+      required: false
+      # (default: string) The type of validations to run on the argument.
+      # Options include: [string, number, file, dir, path]
+      type: string
+```
+
+### Multiple Subcommands
+
+If the top level of your yaml file is a list of commands they'll be treated like subcommands.
+
+```yaml
+- name: sub-command-1
+  description: "This is a command"
+  args:
+    - name: positional-argument
+      description: "A positional argument"
       multiple: false
-      # (default: null) The configuration for the flag's argument if it taks one
+      required: true
+      default: null
+  flags:
+    - shortName: "f"
+      name: "flag"
+      description: "A flag option"
+      multiple: false
       arg: 
-        # (default: null) A default value for optional arguments
         default: null
-        # (default: false) Whether the argument is required or optional
         required: false
-        # (default: string) The type of validations to run on the argument.
-        # Options include: [string, number, file, dir, path]
+        type: string
+- name: sub-command-2
+  description: "This is a command"
+  args:
+    - name: positional-argument
+      description: "A positional argument"
+      multiple: false
+      required: true
+      default: null
+  flags:
+    - shortName: "f"
+      name: "flag"
+      description: "A flag option"
+      multiple: false
+      arg: 
+        default: null
+        required: false
         type: string
 ```
+
