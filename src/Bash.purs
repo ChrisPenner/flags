@@ -8,9 +8,6 @@ import Data.Foldable (for_)
 import Data.Maybe (Maybe)
 import Data.String (Pattern(..), Replacement(..), joinWith, replaceAll)
 
-{-- renderBash :: forall a m. MonadWriter String m => m a -> String --}
-{-- renderBash = execWriter --}
-
 caseOption :: forall m. MonadWriter String m => String -> m Unit -> m Unit
 caseOption opt inside = do
   line (opt <> ")")

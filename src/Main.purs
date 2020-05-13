@@ -16,8 +16,10 @@ import Data.List (List, (:))
 import Data.List as List
 import Data.Maybe (Maybe(..), fromMaybe, isJust, isNothing, maybe, optional)
 import Data.Monoid (guard)
-import Data.String (Pattern(..), Replacement(..), joinWith, replace, toLower, trim)
+import Data.String (Pattern(..), Replacement(..), replace, joinWith, toLower, trim)
 import Data.String.CodeUnits as String
+import Data.String.Regex as Regex
+import Data.String.Regex.Flags (global)
 import Data.Tuple (Tuple(..))
 import Data.Yaml (parseFromYaml)
 import Effect (Effect)
@@ -221,17 +223,25 @@ readConfigFile {srcFilePath, configFilePath} = do
 
 runBuild :: {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String} -> Aff Unit
 runBuild {configFile, outputFile, srcFile} = do
+  shebangPattern <- case Regex.regex "^.*flags shebang$" global of
+       Left err -> do
+          Console.error err
+          liftEffect $ exit 1
+       Right shebangPattern -> pure shebangPattern
   conf <- readConfigFile ({srcFilePath: srcFile, configFilePath: configFile})
   let bash = toBash conf
   totalOutput <- case srcFile of
     Nothing -> pure bash
     Just f -> do
          src <- readTextFile UTF8 f
-         pure (joinWith "\n" ["#!/bin/bash", src, bash])
+         pure (joinWith "\n" [replaceShebang shebangPattern src, bash])
   case outputFile of
     Nothing -> Console.log totalOutput
     Just f ->
       writeTextFile UTF8 f totalOutput
+  where
+    replaceShebang pattern src =
+      Regex.replace pattern "#!/bin/bash" src
 
 parseYamlConfig :: FilePath -> Aff CmdOrCmds
 parseYamlConfig configFile = do
@@ -334,6 +344,7 @@ main = do
 toBash :: CmdOrCmds -> String
 toBash (Cmd cmd) = renderBash {nesting : TopLevel} do
   renderTopLevelHelpCommand cmd
+  renderCmdHelp cmd
   renderCmd cmd
 toBash (Cmds cmds) = renderBash {nesting : Subcommand} do
   subshell $ do
@@ -414,10 +425,6 @@ describeArgs args = map renderArg args
 wrapOptional :: String -> String
 wrapOptional s =  "[" <> s <> "]"
 
-isRequired :: Array String -> Boolean
-isRequired validators =
-  any (_ == "required") validators
-
 describeFlags :: Array FlagDescription -> Array String
 describeFlags flags = map renderFlag flags
   where
@@ -430,9 +437,11 @@ describeFlags flags = map renderFlag flags
 renderCmd :: Command -> Bash Unit
 renderCmd cmd@(Command {name}) = do
      renderCmdArgsAndFlagsParser cmd
-     if' "[[ $_i -lt $_numRequiredArgs ]]" missingArgError Nothing
+     if' "eval \"[[ -z ${_argNames[$_i]} ]]\"" missingArgError Nothing
+     validateFlags cmd
      line (varify name)
   where
+    checkLatestArgMissing = "[[ -z eval \"${_argNames[$_i]} ]]"
     missingArgError = do
        echoErrLn $ "Positional argument \\\"${_argNames[$_i]}\\\" is required"
        spacer
@@ -487,10 +496,10 @@ captureArg = do
     where
       assignArg = indented 1 $ do
          line "eval \"${_argNames[$_i]}=\\\"$1\\\"\""
-         inc "_i"
+         if' "[[ -z ${_multiples[$_i]} ]]" (inc "_i") Nothing
       appendArg = indented 1 $ do
         line $ "eval \"${_argNames[$_i]}+=($1)\""
-        inc "_i"
+        if' "[[ -z ${_multiples[$_i]} ]]" (inc "_i") Nothing
       tooManyArgsErr = do
         echoErrLn "Expected $_numRequiredArgs positional arguments but got $(($_i + $#))"
         spacer
@@ -517,7 +526,6 @@ renderFlagCase (FlagDescription {name, shortName, multiple, arg}) = do
     shift
     case arg of
          Just (FlagArg {typ}) -> do
-          validate flagVarName typ
           if multiple
             then append flagVarName(var "1")
             else assign flagVarName (var "1")
@@ -533,17 +541,32 @@ validate varName typ =
   where
     Tuple cond msg = case typ of
        Str -> Tuple "true" ""
-       Number -> Tuple "[[ \"$1\" =~ ^[+-]?[0-9]+$ ]]" "expected integer"
-       File -> Tuple "[[ -f \"$1\" ]]" "expected a file"
-       Dir -> Tuple "[[ -d \"$1\" ]]" "expected a directory"
-       Path ->  Tuple "[[ -f \"$1\" || -d \"$1\" ]]" "expected a file or directory"
+       Number -> Tuple ("[[ \"$" <> varName <> "\" =~ ^[+-]?[0-9]+$ ]]") "expected integer"
+       File -> Tuple ("[[ -f \"$" <> varName <> "\" ]]") "expected a file"
+       Dir -> Tuple ("[[ -d \"$" <> varName <> "\" ]]") "expected a directory"
+       Path ->  Tuple ("[[ -f \"$" <> varName <> "\" || -d \"$" <> varName <> "\" ]]") "expected a file or directory"
     invalidHandler = do
        indented 1 $ do
-         echoErrLn $ "Problem with flag: " <> varName
+         echoErrLn $ "Problem with " <> varName <> ":"
          echoErrLn $ msg
          spacer
          line "_showHelp"
          line "exit 1"
+
+
+validateFlags :: Command -> Bash Unit
+validateFlags (Command {flags}) = 
+  for_ flags $ \(FlagDescription {name, arg}) -> do
+     case arg of
+          Nothing -> pure unit
+          Just (FlagArg {required, typ}) -> do
+            when required (if' ("[[ -z \"$" <> varify name <> "\" ]]") (missingRequiredArg name) Nothing)
+            validate name typ
+
+  where
+    missingRequiredArg name = do
+       echoErrLn ("Missing required flag: " <> name)
+       line "exit 1"
 
 
 validateCommands :: CmdOrCmds -> Effect Unit
