@@ -1,8 +1,11 @@
 module Main where
 
 
-import Bash (Bash, append, assign, caseOption, case_, echoErrLn, func, if', inc, indented, line, renderBash, scriptName, shift, subshell, var, while, spacer)
+import Bash (append, assign, caseOption, case_, echoErrLn, func, if', inc, indented, line, scriptName, shift, subshell, var, while, spacer)
 import Control.Alt ((<|>))
+import Control.Monad.RWS (ask, asks)
+import Control.Monad.Reader (ReaderT, runReaderT)
+import Control.Monad.Writer (Writer, execWriter)
 import Data.Argonaut (class DecodeJson, decodeJson, (.!=), (.:), (.:?))
 import Data.Array (any, filter, length, null, unsnoc)
 import Data.Array as Array
@@ -199,6 +202,14 @@ instance decodeJsonCmdOrCmds :: DecodeJson CmdOrCmds where
       cmd = Cmd <$> decodeJson json
       cmds = Cmds <$> decodeJson json
 
+type Bash a = ReaderT Env (Writer String) a
+type Env = {nesting :: Nested}
+data Nested = Subcommand | TopLevel
+derive instance eqNested :: Eq Nested
+
+renderBash :: Env -> Bash Unit -> String
+renderBash r m = execWriter $ runReaderT m r
+
 readConfigFile :: {srcFilePath :: Maybe FilePath, configFilePath :: Maybe FilePath} ->  Aff CmdOrCmds
 readConfigFile {srcFilePath, configFilePath} = do
   cmds <- parseYamlConfig actualConfigPath
@@ -211,7 +222,7 @@ readConfigFile {srcFilePath, configFilePath} = do
 runBuild :: {configFile :: Maybe String, srcFile :: Maybe String, outputFile :: Maybe String} -> Aff Unit
 runBuild {configFile, outputFile, srcFile} = do
   conf <- readConfigFile ({srcFilePath: srcFile, configFilePath: configFile})
-  let bash = renderBash $ toBash conf
+  let bash = toBash conf
   totalOutput <- case srcFile of
     Nothing -> pure bash
     Just f -> do
@@ -235,7 +246,7 @@ parseYamlConfig configFile = do
 runRun :: {configFile :: Maybe String, srcFile :: String, passthroughArgs :: List String} -> Aff Unit
 runRun {configFile, srcFile, passthroughArgs} = do
   conf <- readConfigFile ({srcFilePath: Just srcFile, configFilePath: configFile})
-  let bash = renderBash $ toBash conf
+  let bash = toBash conf
   src <- readTextFile UTF8 srcFile
   let totalOutput = (joinWith "\n" [src, bash])
   args <- liftEffect argv
@@ -320,14 +331,14 @@ main = do
               Run runData -> runRun runData
               Init -> runInit
 
-toBash :: CmdOrCmds -> Bash Unit
-toBash (Cmd cmd) = do
-  renderCmdHelp HideName cmd
+toBash :: CmdOrCmds -> String
+toBash (Cmd cmd) = renderBash {nesting : TopLevel} do
+  renderTopLevelHelpCommand cmd
   renderCmd cmd
-toBash (Cmds cmds) = do
+toBash (Cmds cmds) = renderBash {nesting : Subcommand} do
   subshell $ do
-    renderTopLevelHelp cmds
-    for_ cmds (renderCmdHelp ShowName)
+    renderTopLevelHelpCommands cmds
+    for_ cmds renderCmdHelp
     case_ (var "1") $ do
       for_ cmds (\cmd@(Command {name}) -> caseOption name (shift *> renderCmd cmd))
       defaultSubcommand cmds
@@ -338,8 +349,8 @@ defaultSubcommand cmds = do
     shift
     line "_showHelp"
 
-renderTopLevelHelp :: Commands -> Bash Unit
-renderTopLevelHelp cmds = func "_showHelp" $ do
+renderTopLevelHelpCommands :: Commands -> Bash Unit
+renderTopLevelHelpCommands cmds = func "_showHelp" $ do
     echoErrLn "Usage:"
     echoErrLn $ "  " <> scriptName <> " <command>"
     echoErrLn ""
@@ -347,31 +358,39 @@ renderTopLevelHelp cmds = func "_showHelp" $ do
     echoErrLn $ "  " <> scriptName <> " [command] --help"
     echoErrLn ""
     echoErrLn $ "Commands:"
-    for_ cmds (renderCmdSummary ShowName)
+    for_ cmds renderCmdSummary
 
-data NameVisibility = ShowName | HideName
-derive instance eqNameVisibility :: Eq NameVisibility
+renderTopLevelHelpCommand :: Command -> Bash Unit
+renderTopLevelHelpCommand cmd = func "_showHelp" $ do
+    renderCmdSummary cmd
 
-renderCmdSummary :: NameVisibility -> Command -> Bash Unit
-renderCmdSummary visibility (Command {name, description, args, flags}) = do
-  let cmdPrefix = scriptName <> guard (visibility == ShowName) (" " <> name)
+
+
+renderCmdSummary ::  Command -> Bash Unit
+renderCmdSummary (Command {name, description, args, flags}) = do
+  {nesting} <- ask
+  let cmdPrefix = scriptName <> guard (nesting == Subcommand) (" " <> name)
   let descriptors = joinWith "\n" $ map ("    " <> _) (describeArgs args <> describeFlags flags)
   echoErrLn $ "  " <> trim (cmdPrefix <> "\n" <> descriptors)
 
 buildCmdHelpFuncName :: String -> String
 buildCmdHelpFuncName name = "_showHelp" <> varify name
 
-renderCmdHelp :: NameVisibility -> Command -> Bash Unit
-renderCmdHelp nameVisibility cmd@(Command {name, description, args, flags}) = func (buildCmdHelpFuncName name) $ do
-  echoErrLn "Usage:"
-  renderCmdSummary nameVisibility cmd
-  echoErrLn ""
-  when (not (null args)) $ do
-    echoErrLn "Args:"
-    for_ args renderArgHelp
-  when (not (null flags)) $ do
-     echoErrLn "Flags:"
-     for_ flags renderFlagHelp
+renderCmdHelp :: Command -> Bash Unit
+renderCmdHelp cmd@(Command {name, description, args, flags}) = func (buildCmdHelpFuncName name) $ do
+  asks (_.nesting) >>= case _ of
+    TopLevel -> do
+       line "_showHelp"
+    Subcommand -> do
+      echoErrLn "Usage:"
+      renderCmdSummary cmd
+      echoErrLn ""
+      when (not (null args)) $ do
+        echoErrLn "Args:"
+        for_ args renderArgHelp
+      when (not (null flags)) $ do
+        echoErrLn "Flags:"
+        for_ flags renderFlagHelp
 
 renderArgHelp :: ArgDescription -> Bash Unit
 renderArgHelp (ArgDescription {name, description}) = do

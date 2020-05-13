@@ -2,18 +2,16 @@ module Bash where
 
 import Prelude
 
-import Control.Monad.Writer (Writer, censor, execWriter, tell)
+import Control.Monad.Writer (class MonadWriter, censor, tell)
 import Data.Array (replicate)
 import Data.Foldable (for_)
 import Data.Maybe (Maybe)
 import Data.String (Pattern(..), Replacement(..), joinWith, replaceAll)
 
-type Bash a = Writer String a
+{-- renderBash :: forall a m. MonadWriter String m => m a -> String --}
+{-- renderBash = execWriter --}
 
-renderBash :: forall a. Bash a -> String
-renderBash = execWriter
-
-caseOption :: String -> Bash Unit -> Bash Unit
+caseOption :: forall m. MonadWriter String m => String -> m Unit -> m Unit
 caseOption opt inside = do
   line (opt <> ")")
   indented 1 $ do
@@ -21,7 +19,7 @@ caseOption opt inside = do
   line ";;"
   line ""
 
-case_ :: String -> Bash Unit -> Bash Unit
+case_ :: forall m. MonadWriter String m => String -> m Unit -> m Unit
 case_ arg inside = do
   line $ "case " <> arg <> " in"
   indented 1 inside
@@ -33,23 +31,23 @@ quoted s = "\"" <> s <> "\""
 var :: String -> String
 var s = quoted ("$" <> s)
 
-indented :: Int -> Bash Unit -> Bash Unit
+indented :: forall m. MonadWriter String m => Int -> m Unit -> m Unit
 indented n = censor ((indents <> _) <<< replaceAll (Pattern "\n") (Replacement ("\n" <> indents)))
   where
     indents = joinWith "" (replicate n "  ")
 
-line :: String -> Bash Unit
+line :: forall m. MonadWriter String m => String -> m Unit
 line s = tell (s <> "\n")
 
 
-while :: String -> Bash Unit -> Bash Unit
+while :: forall m. MonadWriter String m => String -> m Unit -> m Unit
 while condition loop = do
   line $ "while " <> condition <> "; do"
   indented 1 $ do
      loop
   line "done"
 
-if' :: String -> Bash Unit -> Maybe (Bash Unit) -> Bash Unit
+if' :: forall m. MonadWriter String m => String -> m Unit -> Maybe (m Unit) -> m Unit
 if' condition whenTrue mWhenFalse = do
   line $ "if " <> condition <> "; then"
   indented 1 whenTrue
@@ -58,42 +56,42 @@ if' condition whenTrue mWhenFalse = do
     indented 1 whenFalse
   line "fi"
 
-shift :: Bash Unit
+shift :: forall m. MonadWriter String m => m Unit
 shift = line "shift"
 
-capture :: String -> Bash Unit
+capture :: forall m. MonadWriter String m => String -> m Unit
 capture varName = do
   line $ varName <> "=" <> var varName
   shift
 
-subshell ::  Bash Unit -> Bash Unit
+subshell ::  forall m. MonadWriter String m => m Unit -> m Unit
 subshell script = do
   line "("
   indented 1 script
   line ")"
 
-assign :: String -> String -> Bash Unit
+assign :: forall m. MonadWriter String m => String -> String -> m Unit
 assign varName val = do
   line $ varName <> "=" <> val
 
-append :: String -> String -> Bash Unit
+append :: forall m. MonadWriter String m => String -> String -> m Unit
 append varName val = do
   line $ varName <> "+=(" <> val <> ")"
 
-echoErrLn :: String -> Bash Unit
+echoErrLn :: forall m. MonadWriter String m => String -> m Unit
 echoErrLn s = line $ "echo \"" <> s <> "\" >&2"
 
 scriptName :: String
 scriptName = var "0"
 
-inc :: String -> Bash Unit
+inc :: forall m. MonadWriter String m => String -> m Unit
 inc c = line $ c <> "=$((" <> c <> "+1))"
 
-func :: String -> Bash Unit -> Bash Unit
+func :: forall m. MonadWriter String m => String -> m Unit -> m Unit
 func name body = do
   line $ "function " <> name <> "(){"
   indented 1 body
   line $ "}"
 
-spacer :: Bash Unit
+spacer :: forall m. MonadWriter String m => m Unit
 spacer = line "echo"
